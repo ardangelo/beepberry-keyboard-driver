@@ -106,7 +106,7 @@ Copy the Git repository from above and download it on your Pi, preferably on `/h
   source newbieInstallation.sh
   ```
 - As Expert
-  1. The `preInstaller.sh` file will place the module name in `/etc/modules, overlay in the `/boot/config.txt`, keymap in `/usr/local/share/kbd/keymaps/`, and finally echo this location to `/etc/default/keyboard`. `source` this file once at the start.
+  1. The `preInstaller.sh` file will place the module name in `/etc/modules`, overlay in the `/boot/config.txt`, keymap in `/usr/local/share/kbd/keymaps/`, and finally echo this location to `/etc/default/keyboard`. `source` this file once at the start.
   2. run `make && make dtbo` to generate driver and dtbo files.
   3. The `installer.sh` will load the driver in the `/lib`, and place the dtbo file in `/boot/overlays`.
   4. If you want to develop and work on the code, The module can be removed with `remover.sh`. If you want to remove the stuff added by `preInstaller.sh` in step 1. above too, use the `preRemover.sh`, **but be cautious of this file. Only run this if you know you didn't add anything to `/etc/modules`, `/etc/default/keyboard`, and `/boot/config.txt` after using the above files, otherwise other critical stuff you place there might get deleted.***
