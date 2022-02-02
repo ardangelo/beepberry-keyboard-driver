@@ -40,10 +40,10 @@ altgr keycode 25 = 0x007D #O to {
 altgr keycode 30 = 0x007C #A to |
 altgr keycode 32 = 0x005B #D to [
 altgr keycode 33 = 0x005D #F to ]
-altgr keycode 46 = degree #C to °
+altgr keycode 46 = degree #C to &
 altgr keycode 47 = 0x003C #V to <
 altgr keycode 49 = 0x003E #N to >
-altgr keycode 57 = space
+altgr keycode 57 = ampersand
 
 
 

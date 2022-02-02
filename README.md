@@ -64,7 +64,7 @@ Volume can be increased or decreased by `RTALT`+`Z` and `RTALT`+`X` respectively
  *	+------+-----+----+----+----+----+----+-----+-----+-------+
  *	|            |0   |                TAB|     |             |
  *	| LEFT_SHIFT | ~  |       SPACE       |RTALT| RIGHT_SHIFT |
- *	|            |  Vx|SPACE              |     |             |
+ *	|            |  Vx|&                  |     |             |
  *	+------------+----+-------------------+-----+-------------+
 ```
 
