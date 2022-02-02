@@ -1,0 +1,53 @@
+    keycode 11 = asciitilde
+alt keycode 11 = zero
+alt keycode 16 = numbersign
+alt keycode 17 = one
+alt keycode 18 = two
+alt keycode 19 = three
+alt keycode 20 = parenleft
+alt keycode 21 = parenright
+alt keycode 22 = underscore
+alt keycode 23 = minus
+alt keycode 24 = plus
+alt keycode 25 = at
+alt keycode 28 = bar
+alt keycode 30 = asterisk
+alt keycode 31 = four
+alt keycode 32 = five
+alt keycode 33 = six
+alt keycode 34 = slash
+alt keycode 35 = colon
+alt keycode 36 = semicolon
+alt keycode 37 = apostrophe
+alt keycode 38 = quotedbl
+    keycode 41 = dollar
+alt keycode 41 = grave
+alt keycode 44 = seven
+alt keycode 45 = eight
+alt keycode 46 = nine
+alt keycode 47 = question
+alt keycode 48 = exclam
+alt keycode 49 = comma
+alt keycode 50 = period
+alt keycode 57 = Tab
+
+
+altgr keycode 14 = Escape #CHANGE Check if correct.
+altgr keycode 20 = 0x005C #T to backslash
+altgr keycode 22 = 0x005E #U to ^
+altgr keycode 23 = equal #I to =
+altgr keycode 24 = 0x007B #O to {
+altgr keycode 25 = 0x007D #O to {
+altgr keycode 30 = 0x007C #A to |
+altgr keycode 32 = 0x005B #D to [
+altgr keycode 33 = 0x005D #F to ]
+altgr keycode 46 = degree #C to °
+altgr keycode 47 = 0x003C #V to <
+altgr keycode 49 = 0x003E #N to >
+altgr keycode 57 = space
+
+
+
+alt keycode 42 = Caps_Lock #Alt plus Left Shift to Capslock
+
+
