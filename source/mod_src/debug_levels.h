@@ -25,6 +25,6 @@
 #define DEBUG_LEVEL_RW              2
 #define DEBUG_LEVEL_LD              4
 
-// #define DEBUG_LEVEL                (DEBUG_LEVEL_FE | DEBUG_LEVEL_LD)
+// #define DEBUG_LEVEL                (DEBUG_LEVEL_LD)
 #define DEBUG_LEVEL                 DEBUG_LEVEL_OFF
 #endif

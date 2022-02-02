@@ -113,7 +113,7 @@ static unsigned short get_altgr_keycode(unsigned short keycode)
 		returnValue = KEY_MUTE;
 		break;
 	case KEY_BACKSPACE:
-		returnValue = KEY_ESC;
+		returnValue = KEY_DELETE;
 		break;
 	default:
 		returnValue = keycode;
@@ -245,8 +245,6 @@ static void bbqX0kbd_read_fifo(struct bbqX0kbd_data *bbqX0kbd_data)
 					if (data[0] == KEY_PRESSED_STATE || data[0] == KEY_PRESSED_AND_HELD_STATE)
 						set_brightness(bbqX0kbd_data, keycode, &reportKey);
 				}
-				if ((bbqX0kbd_data->modifier_keys_status & LEFT_ALT_BIT) && keycode == KEY_BACKSPACE)
-					keycode = KEY_DELETE;
 #if (DEBUG_LEVEL & DEBUG_LEVEL_LD)
 				dev_info(&client->dev, "%s MODKEYS: 0x%02X LOCKKEYS: 0x%02X keycode: %d State: %d reportKey: %d\n", __func__, bbqX0kbd_data->modifier_keys_status, bbqX0kbd_data->lockStatus, keycode, data[0], reportKey);
 #endif
@@ -256,7 +254,6 @@ static void bbqX0kbd_read_fifo(struct bbqX0kbd_data *bbqX0kbd_data)
 			}
 		}
 	}
-
 	input_sync(input);
 }
 

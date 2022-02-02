@@ -1,3 +1,4 @@
+    keycode 1 = Escape
     keycode 11 = asciitilde
 alt keycode 11 = zero
 alt keycode 16 = numbersign
@@ -31,8 +32,6 @@ alt keycode 49 = comma
 alt keycode 50 = period
 alt keycode 57 = Tab
 
-
-altgr keycode 14 = Escape #CHANGE Check if correct.
 altgr keycode 20 = 0x005C #T to backslash
 altgr keycode 22 = 0x005E #U to ^
 altgr keycode 23 = equal #I to =
