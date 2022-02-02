@@ -160,7 +160,7 @@ After following the Newbie or expert guide, reboot your pi and on login, the Key
  - For changing the Interrupt Pin on the Raspberry Pi, a few changes are needed.
    1. In the `installer.sh`, change the line `sudo sh -c "echo dtoverlay=i2c-bbqX0kbd,irq_pin=22 >> /boot/config.txt"` to `sudo sh -c "echo dtoverlay=i2c-bbqX0kbd,irq_pin=BCM_PIN >> /boot/config.txt"` where `BCM_PIN` is the BCM Pin on the Pi Header. By default, it's set to GPIO 22, or the Pin 15 of the Raspberry Pi. 
    2. The Settings of the LCD can be changed as shown in [fbcp-ili9341](https://github.com/juj/fbcp-ili9341.git). Notably, the Data_Command Pin can be changed and Clock speed can be increased.
-   3. Look at the `bbq10kbd.map` file for alternate key binds. Edit it as per your need and put the new map file in correct folder (as per `preInstaller.sh`) to be loaded correctly in `/etc/default/keyboard`. One can use `sudo loadkeys path/to/bbq10kbd.map` while the driver is running, and press keys to check their new key bindings before placing it in the right location.
+   3. Look at the `bbq10kbd.map` file for alternate key binds. Edit it as per your need and put the new map file in correct folder (as per `installer.sh`) to be loaded correctly in `/etc/default/keyboard`. One can use `sudo loadkeys path/to/bbq10kbd.map` while the driver is running, and press keys to check their new key bindings before placing it in the right location. Once satisfied with your keymap, run `source remover.sh && source installer.sh` to reinstall everything correctly.
 
 ## Known Issues
 
