@@ -121,6 +121,10 @@ After following the Newbie or expert guide, reboot your pi and on login, the Key
      CE0(Pi Pin 24/BCM GPIO 8) ---> LCD_CS on Keyboard FeatherWing.
      GPIO9(Pi Pin 13/BCM GPIO 27) ---> LCD_DC on Keyboard FeatherWing.
      ```
+     If you are using the [Keyboard FeatherWing](https://www.tindie.com/products/arturo182/keyboard-featherwing-qwerty-keyboard-26-lcd/), you will also need to pull the `RST` Pin on the Featherwing to `3.3V`. 
+     ```bash
+     3.3V on Pi ----> RST on Keyboard FeatherWing.
+     ```
   1. Install git and cmake.
      ```bash
      sudo apt install git cmake
