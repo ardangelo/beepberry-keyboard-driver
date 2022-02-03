@@ -90,7 +90,7 @@ Volume can be increased or decreased by `RTALT`+`Z` and `RTALT`+`X` respectively
   Pi Pin 15/BCM GPIO 22 on Pi ----> INT Pin on Keyboard Pmod or KBD_INT on Keyboard FeatherWing.
   ```
 
-  3. Check pre-requisites with the command `i2cdetect -y 1`(one might need `sudo`). They keyboard should be on the address `0x1F`. If you are using the [Keyboard FeatherWing](https://www.tindie.com/products/arturo182/keyboard-featherwing-qwerty-keyboard-26-lcd/), the Touch sensor on the screen will also show up on `0x0A`.
+  3. Check pre-requisites with the command `i2cdetect -y 1`(one might need `sudo`). They keyboard should be on the address `0x1F`. If you are using the [Keyboard FeatherWing](https://www.tindie.com/products/arturo182/keyboard-featherwing-qwerty-keyboard-26-lcd/), the Touch sensor on the screen will also show up on `0x4B`.
 
 ### Download
 
