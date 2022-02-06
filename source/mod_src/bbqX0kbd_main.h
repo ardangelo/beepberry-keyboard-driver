@@ -18,6 +18,8 @@
 #include <linux/property.h>
 #include <linux/slab.h>
 #include <linux/types.h>
+#include <linux/workqueue.h>
+#include <linux/ktime.h>
 
 #include "bbqX0kbd_i2cHelper.h"
 #include "bbq10kbd_registers.h"
@@ -27,6 +29,7 @@
 
 #ifdef BBQ10KBD_REGISTERS_H_
 #define BBQX0KBD_I2C_ADDRESS	BBQ10_I2C_ADDRESS
+#define BBQX0KBD_FIFO_SIZE		BBQ10_FIFO_SIZE
 #endif
 
 #define COMPATIBLE_NAME			"wallComputer,bbqX0kbd"
@@ -49,7 +52,10 @@
 #define CAPS_LOCK_BIT			BIT(0)
 #define NUMS_LOCK_BIT			BIT(1)
 
+struct bbqX0kbd_work;
+
 struct bbqX0kbd_data {
+	struct work_struct work_struct;
 	uint8_t version_number;
 	uint8_t modifier_keys_status;
 	uint8_t lockStatus;
@@ -57,9 +63,11 @@ struct bbqX0kbd_data {
 	uint8_t lastKeyboardBrightness;
 	uint8_t screenBrightness;
 	uint8_t lastScreenBrightness;
+	uint8_t fifoCount;
+	uint8_t fifoData[BBQX0KBD_FIFO_SIZE][2];
 	unsigned short keycode[NUM_KEYCODES];
-	struct i2c_client *client;
-	struct input_dev *input;
+	struct i2c_client *i2c_client;
+	struct input_dev *input_dev;
 };
 
 MODULE_LICENSE("GPL");

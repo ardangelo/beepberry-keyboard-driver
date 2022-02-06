@@ -35,7 +35,7 @@ static uint8_t bbqX0kbd_modkeys_to_bits(unsigned short mod_keycode)
 	return returnValue;
 }
 
-static unsigned short get_num_lock_keycode(unsigned short keycode)
+static unsigned short bbqX0kbd_get_num_lock_keycode(unsigned short keycode)
 {
 	unsigned short returnValue;
 
@@ -74,7 +74,7 @@ static unsigned short get_num_lock_keycode(unsigned short keycode)
 	return returnValue;
 }
 
-static unsigned short get_altgr_keycode(unsigned short keycode)
+static unsigned short bbqX0kbd_get_altgr_keycode(unsigned short keycode)
 {
 	unsigned short returnValue;
 
@@ -122,7 +122,7 @@ static unsigned short get_altgr_keycode(unsigned short keycode)
 	return returnValue;
 }
 
-static void set_brightness(struct bbqX0kbd_data *bbqX0kbd_data, unsigned short keycode, uint8_t *reportKey)
+static void bbqX0kbd_set_brightness(struct bbqX0kbd_data *bbqX0kbd_data, unsigned short keycode, uint8_t *reportKey)
 {
 	uint8_t swapVar;
 
@@ -172,58 +172,72 @@ static void set_brightness(struct bbqX0kbd_data *bbqX0kbd_data, unsigned short k
 		break;
 	}
 	if (*reportKey == 0)
-		bbqX0kbd_write(bbqX0kbd_data->client, BBQX0KBD_I2C_ADDRESS, REG_BKL, &bbqX0kbd_data->keyboardBrightness, sizeof(uint8_t));
+		bbqX0kbd_write(bbqX0kbd_data->i2c_client, BBQX0KBD_I2C_ADDRESS, REG_BKL, &bbqX0kbd_data->keyboardBrightness, sizeof(uint8_t));
 
 	if (*reportKey == 1 && bbqX0kbd_data->version_number == BBQ10_I2C_SW_VERSION)
-		bbqX0kbd_write(bbqX0kbd_data->client, BBQX0KBD_I2C_ADDRESS, REG_BK2, &bbqX0kbd_data->screenBrightness, sizeof(uint8_t));
+		bbqX0kbd_write(bbqX0kbd_data->i2c_client, BBQX0KBD_I2C_ADDRESS, REG_BK2, &bbqX0kbd_data->screenBrightness, sizeof(uint8_t));
 
 }
 
 static void bbqX0kbd_read_fifo(struct bbqX0kbd_data *bbqX0kbd_data)
 {
-	struct input_dev *input = bbqX0kbd_data->input;
-	struct i2c_client *client = bbqX0kbd_data->client;
-	unsigned int keycode;
-	uint8_t data[2];
+	struct i2c_client *i2c_client = bbqX0kbd_data->i2c_client;
+	uint8_t fifo_data[2];
 	uint8_t count;
-	int error;
-	uint8_t reportKey = 2;
+	uint8_t pos;
+	int returnValue;
 
-	error = bbqX0kbd_read(client, BBQX0KBD_I2C_ADDRESS, REG_KEY, data, sizeof(uint8_t));
-
-	if (error < 0) {
-		dev_err(&client->dev, "%s failed to read REG_KEY, error: %d\n",
-			__func__, error);
+	returnValue = bbqX0kbd_read(i2c_client, BBQX0KBD_I2C_ADDRESS, REG_KEY, &count, sizeof(uint8_t));
+	if (returnValue != 0) {
+		dev_err(&i2c_client->dev, "%s Could not read REG_KEY, Error: %d\n", __func__, returnValue);
 		return;
 	}
-
-	pr_debug("%s status: 0x%02X\n", __func__, data[0]);
-
-	count = (data[0] & REG_KEY_KEYCOUNT_MASK);
-
-	while (count > 0) {
-		error = bbqX0kbd_read(client, BBQX0KBD_I2C_ADDRESS, REG_FIF, data, 2*sizeof(uint8_t));
-		if (error < 0) {
-			dev_err(&client->dev, "%s failed to read REG_FIF, error: %d\n",
-				__func__, error);
+	count = count & REG_KEY_KEYCOUNT_MASK;
+	bbqX0kbd_data->fifoCount = count;
+	pos = 0;
+	while (count) {
+		returnValue = bbqX0kbd_read(i2c_client, BBQX0KBD_I2C_ADDRESS, REG_FIF, fifo_data, 2*sizeof(uint8_t));
+		if (returnValue != 0) {
+			dev_err(&i2c_client->dev, "%s Could not read REG_FIF, Error: %d\n", __func__, returnValue);
 			return;
 		}
+		bbqX0kbd_data->fifoData[pos][0] = fifo_data[0];
+		bbqX0kbd_data->fifoData[pos][1] = fifo_data[1];
+#if (DEBUG_LEVEL & DEBUG_LEVEL_LD)
+		dev_info(&i2c_client->dev, "%s Filled Data: KeyState:%d SCANCODE:%d at Pos: %d Count: %d\n",
+			__func__, bbqX0kbd_data->fifoData[pos][0], bbqX0kbd_data->fifoData[pos][1], pos, count);
+#endif
+		++pos;
+		--count;
+	}
+}
 
-		pr_debug("%s key %d/%c, state: %d\n",
-			__func__, data[1], data[1], data[0]);
+static void bbqX0kbd_work_fnc(struct work_struct *work_struct_ptr)
+{
+	struct bbqX0kbd_data *bbqX0kbd_data;
+	struct input_dev *input_dev;
+	struct i2c_client *i2c_client;
+	unsigned short keycode;
+	uint8_t pos = 0;
+	uint8_t reportKey = 2;
+	uint8_t registerValue = 0x00;
+	int returnValue = 0;
 
-		count -= 1;
+	bbqX0kbd_data = container_of(work_struct_ptr, struct bbqX0kbd_data, work_struct);
+	input_dev = bbqX0kbd_data->input_dev;
+	i2c_client = bbqX0kbd_data->i2c_client;
 
-		if (data[0] == KEY_PRESSED_STATE || data[0] == KEY_RELEASED_STATE) {
-			input_event(input, EV_MSC, MSC_SCAN, data[1]);
+	while (bbqX0kbd_data->fifoCount > 0) {
+		if (bbqX0kbd_data->fifoData[pos][0] == KEY_PRESSED_STATE || bbqX0kbd_data->fifoData[pos][0] == KEY_RELEASED_STATE) {
+			input_event(input_dev, EV_MSC, MSC_SCAN, bbqX0kbd_data->fifoData[pos][1]);
 
-			keycode = bbqX0kbd_data->keycode[data[1]];
+			keycode = bbqX0kbd_data->keycode[bbqX0kbd_data->fifoData[pos][1]];
 			switch (keycode) {
 			case KEY_UNKNOWN:
-				dev_warn(&client->dev, "%s Could not get Keycode for Scancode: [0x%02X]\n", __func__, data[1]);
+				dev_warn(&i2c_client->dev, "%s Could not get Keycode for Scancode: [0x%02X]\n", __func__, bbqX0kbd_data->fifoData[pos][1]);
 				break;
 			case KEY_RIGHTSHIFT:
-				if (bbqX0kbd_data->modifier_keys_status & LEFT_ALT_BIT && data[0] == KEY_PRESSED_STATE)
+				if (bbqX0kbd_data->modifier_keys_status & LEFT_ALT_BIT && bbqX0kbd_data->fifoData[pos][0] == KEY_PRESSED_STATE)
 					bbqX0kbd_data->lockStatus ^= NUMS_LOCK_BIT;
 				fallthrough;
 			case KEY_LEFTSHIFT:
@@ -231,36 +245,41 @@ static void bbqX0kbd_read_fifo(struct bbqX0kbd_data *bbqX0kbd_data)
 			case KEY_LEFTALT:
 			case KEY_LEFTCTRL:
 			case KEY_RIGHTCTRL:
-				if (data[0] == KEY_PRESSED_STATE || data[0] == KEY_PRESSED_AND_HELD_STATE)
+				if (bbqX0kbd_data->fifoData[pos][0] == KEY_PRESSED_STATE)
 					bbqX0kbd_data->modifier_keys_status |= bbqX0kbd_modkeys_to_bits(keycode);
 				else
 					bbqX0kbd_data->modifier_keys_status &= ~bbqX0kbd_modkeys_to_bits(keycode);
 				fallthrough;
 			default:
-
 				if (bbqX0kbd_data->lockStatus & NUMS_LOCK_BIT)
-					keycode = get_num_lock_keycode(keycode);
+					keycode = bbqX0kbd_get_num_lock_keycode(keycode);
 				else if (bbqX0kbd_data->modifier_keys_status & RIGHT_ALT_BIT) {
-					keycode = get_altgr_keycode(keycode);
-					if (data[0] == KEY_PRESSED_STATE || data[0] == KEY_PRESSED_AND_HELD_STATE)
-						set_brightness(bbqX0kbd_data, keycode, &reportKey);
+					keycode = bbqX0kbd_get_altgr_keycode(keycode);
+					if (bbqX0kbd_data->fifoData[pos][0] == KEY_PRESSED_STATE)
+						bbqX0kbd_set_brightness(bbqX0kbd_data, keycode, &reportKey);
 				}
 #if (DEBUG_LEVEL & DEBUG_LEVEL_LD)
-				dev_info(&client->dev, "%s MODKEYS: 0x%02X LOCKKEYS: 0x%02X keycode: %d State: %d reportKey: %d\n", __func__, bbqX0kbd_data->modifier_keys_status, bbqX0kbd_data->lockStatus, keycode, data[0], reportKey);
+				dev_info(&i2c_client->dev, "%s MODKEYS: 0x%02X LOCKKEYS: 0x%02X keycode: %d State: %d reportKey: %d\n", __func__, bbqX0kbd_data->modifier_keys_status, bbqX0kbd_data->lockStatus, keycode, bbqX0kbd_data->fifoData[pos][0], reportKey);
 #endif
 				if (reportKey == 2)
-					input_report_key(input, keycode, data[0] == KEY_PRESSED_STATE);
+					input_report_key(input_dev, keycode, bbqX0kbd_data->fifoData[pos][0] == KEY_PRESSED_STATE);
 				break;
 			}
 		}
+		++pos;
+		--bbqX0kbd_data->fifoCount;
 	}
-	input_sync(input);
+	input_sync(input_dev);
+	registerValue = 0x00;
+	returnValue = bbqX0kbd_write(i2c_client, BBQX0KBD_I2C_ADDRESS, REG_INT, &registerValue, sizeof(uint8_t));
+	if (returnValue < 0)
+		dev_err(&i2c_client->dev, "%s Could not clear REG_INT. Error: %d\n", __func__, returnValue);
 }
 
 static irqreturn_t bbqX0kbd_irq_handler(int irq, void *dev_id)
 {
 	struct bbqX0kbd_data *bbqX0kbd_data = dev_id;
-	struct i2c_client *client = bbqX0kbd_data->client;
+	struct i2c_client *client = bbqX0kbd_data->i2c_client;
 	int returnValue;
 	uint8_t registerValue;
 
@@ -284,45 +303,17 @@ static irqreturn_t bbqX0kbd_irq_handler(int irq, void *dev_id)
 	if (registerValue & REG_INT_OVERFLOW)
 		dev_warn(&client->dev, "%s overflow occurred.\n", __func__);
 
-	if (registerValue & REG_INT_KEY)
+	if (registerValue & REG_INT_KEY) {
 		bbqX0kbd_read_fifo(bbqX0kbd_data);
-
-	registerValue = 0x00;
-	returnValue = bbqX0kbd_write(client, BBQX0KBD_I2C_ADDRESS, REG_INT, &registerValue, sizeof(uint8_t));
-	if (returnValue < 0)
-		dev_err(&client->dev, "%s Could not clear REG_INT. Error: %d\n", __func__, returnValue);
+		schedule_work(&bbqX0kbd_data->work_struct);
+	}
 	return IRQ_HANDLED;
 }
-
-static int bbqX0kbd_backlight_update_status(struct backlight_device *backlight_device)
-{
-	int returnValue;
-	const struct backlight_properties *p = &backlight_device->props;
-	const uint8_t intensity = (p->power == FB_BLANK_UNBLANK) ? p->brightness : 0;
-	struct bbqX0kbd_data *bbqX0kbd_data = dev_get_drvdata(&backlight_device->dev);
-
-	returnValue = bbqX0kbd_write(bbqX0kbd_data->client, BBQX0KBD_I2C_ADDRESS, REG_BKL, &intensity, sizeof(uint8_t));
-	if (returnValue != 0)
-		dev_err(&bbqX0kbd_data->client->dev, "%s Could not write to BBQX0KBD Backlight Register. Error: %d", __func__, returnValue);
-	return returnValue;
-}
-
-static const struct backlight_ops backlight_ops = {
-	.options		= BL_CORE_SUSPENDRESUME,
-	.update_status	= bbqX0kbd_backlight_update_status,
-};
-
-static struct backlight_properties backlight_props = {
-	.type			= BACKLIGHT_PLATFORM,
-	.max_brightness = 255,
-	.brightness		= 127,
-};
 
 static int bbqX0kbd_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	struct device *dev = &client->dev;
 	struct bbqX0kbd_data *bbqX0kbd_data;
-	struct backlight_device *backlight_device;
 	struct input_dev *input;
 	int returnValue;
 	int i;
@@ -334,7 +325,7 @@ static int bbqX0kbd_probe(struct i2c_client *client, const struct i2c_device_id 
 	bbqX0kbd_data = devm_kzalloc(dev, sizeof(*bbqX0kbd_data), GFP_KERNEL);
 	if (!bbqX0kbd_data)
 		return -ENOMEM;
-	bbqX0kbd_data->client = client;
+	bbqX0kbd_data->i2c_client = client;
 	memcpy(bbqX0kbd_data->keycode, keycodes, sizeof(bbqX0kbd_data->keycode));
 
 	returnValue = bbqX0kbd_write(client, BBQX0KBD_I2C_ADDRESS, REG_RST, &registerValue, sizeof(uint8_t));
@@ -358,34 +349,21 @@ static int bbqX0kbd_probe(struct i2c_client *client, const struct i2c_device_id 
 		dev_err(&client->dev, "%s Could not write configuration to BBQX0KBD. Error: %d\n", __func__, returnValue);
 		return -ENODEV;
 	}
+#if (DEBUG_LEVEL & DEBUG_LEVEL_LD)
 	returnValue = bbqX0kbd_read(client, BBQX0KBD_I2C_ADDRESS, REG_CFG, &registerValue, sizeof(uint8_t));
 	if (returnValue != 0) {
 		dev_err(&client->dev, "%s Could not read REG_CFG. Error: %d\n", __func__, returnValue);
 		return returnValue;
 	}
-#if (DEBUG_LEVEL & DEBUG_LEVEL_LD)
 	dev_info(&client->dev, "%s Configuration Register Value: 0x%02X\n", __func__, registerValue);
 #endif
 
-	backlight_device = devm_backlight_device_register(dev, client->name, dev,
-					    bbqX0kbd_data,
-					    &backlight_ops,
-					    &backlight_props);
-	if (IS_ERR(backlight_device)) {
-		dev_err(&client->dev, "%s Could not create BBQX0KBD Backlight Device Register.\n", __func__);
-		return PTR_ERR(backlight_device);
-	}
-	returnValue = backlight_update_status(backlight_device);
-	if (returnValue != 0) {
-		dev_err(&client->dev, "%s Could not set backlight Configurations BBQX0KBD. Error: %d\n", __func__, returnValue);
-		return -ENODEV;
-	}
 	input = devm_input_allocate_device(dev);
 	if (!input) {
 		dev_err(&client->dev, "%s Could not devm_input_allocate_device BBQX0KBD. Error: %d\n", __func__, returnValue);
 		return -ENOMEM;
 	}
-	bbqX0kbd_data->input = input;
+	bbqX0kbd_data->input_dev = input;
 
 	input->name = client->name;
 	input->id.bustype = BBQX0KBD_BUS_TYPE;
@@ -419,6 +397,9 @@ static int bbqX0kbd_probe(struct i2c_client *client, const struct i2c_device_id 
 										NULL, bbqX0kbd_irq_handler,
 										IRQF_SHARED | IRQF_ONESHOT,
 										client->name, bbqX0kbd_data);
+
+	// bbqX0kbd_data->work_struct_ptr = kmalloc(sizeof(struct work_struct), GFP_KERNEL);
+	INIT_WORK(&bbqX0kbd_data->work_struct, bbqX0kbd_work_fnc);
 	if (returnValue != 0) {
 		dev_err(&client->dev, "Coudl not claim IRQ %d; error %d\n", client->irq, returnValue);
 		return returnValue;
