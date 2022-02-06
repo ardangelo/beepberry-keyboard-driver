@@ -11,9 +11,10 @@
 #define BBQ10_I2C_ADDRESS               0x1F
 
 #define BBQ10_WRITE_MASK                0x80
+#define BBQ10_I2C_SW_VERSION            0x04
+#define BBQ10_FIFO_SIZE                 31
 
 #define REG_VER                         0x01
-#define BBQ10_I2C_SW_VERSION            0x04
 
 #define REG_CFG                         0x02
 #define REG_CFG_USE_MODS                BIT(7)
