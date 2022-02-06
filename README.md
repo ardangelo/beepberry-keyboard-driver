@@ -169,13 +169,11 @@ After following the Newbie or expert guide, reboot your pi and on login, the Key
 ## Known Issues
 
   - The BIGGEST FLAW at the moment is that the driver does not work as intended on Desktop view. The basic keys work, so do Num Lock and Caps Lock features. However, the mapping assigned as per the above keyboard layout does not present itself. Pressing the `LFTALT` key immediately presents the alternate optional menus, which hinders getting any higher and lower keys as per the layout. Two things are suspected, either the Buster Keyboard Layout configuration has some issues (Buster has had issues in Keyboard config for me from `raspi-config`, or else it's as intended behaviour, `Alt` Key pressed on a GUI indicates using other keys for menu options and not for printing characters. 
-  - `RTALT`+`SPACE` generates a `SPACE` Key. This is done on purpose. To me it's an issue because though it's not something commonly done (On most machines with `AltGr`, pressing space with this modifier key does nothing, but on console, it did produce a `SPACE` Key.
   - `RTALT`+`~` produces `MUTE` Key. However on Console, it also puts out the `~` key. I have not yet been able to find the cause of this issue. 
   - The entire feature of Volume control is untested as of now. `evtest` shows the `Volume Up`, `Volume Down`, and `MUTE` keys pressed, but as the keyboard driver works the best on console only at the moment, I'm not sure how this function works on a Desktop GUI.
-  - Once Num Lock is activated, Pressing `SHIFT`+a Num Lock key gives the second level Keys associated with that number, for example, Num Lock + `SHIFT`+`D` (for 5) gives `%` which is usually second level key for `5`. Though this is normal behaviour for most keyboards, having Num Lock on and pressing a key can confuse a user.
 
 ## Future Work
- - Move the fifo reading task to a work queue. This will require changes in a few places, though the core logic should not change. 
+ - ~~Move the fifo reading task to a work queue. This will require changes in a few places, though the core logic should not change.~~ [DONE: using `delayed_work_branch`]
  - Solve the BIGGEST FLAW
  - Make the code compatible with upcoming works of [Solder Party](https://www.solder.party/community/) Keyboards.
  - Add The touch screen sensor to Keyboard Driver itself.
