@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0
-# Keyboard Driver for Blackberry Keyboards BBQ10 from arturo182. Software wri$
+# Keyboard Driver for Blackberry Keyboards BBQ10 from arturo182. Software written by wallComputer.
 
 
 KERN_VER = $(shell uname -r)
