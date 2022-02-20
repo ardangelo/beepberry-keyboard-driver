@@ -52,8 +52,6 @@
 #define CAPS_LOCK_BIT			BIT(0)
 #define NUMS_LOCK_BIT			BIT(1)
 
-struct bbqX0kbd_work;
-
 struct bbqX0kbd_data {
 	struct work_struct work_struct;
 	uint8_t version_number;
