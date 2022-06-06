@@ -11,8 +11,8 @@ extern int bbqX0kbd_write(struct i2c_client *i2c_client, uint8_t deviceAddress, 
 	int returnValue;
 
 	switch (deviceAddress) {
-	case BBQ10_I2C_ADDRESS:
-		returnValue = i2c_smbus_write_byte_data(i2c_client, registerAddress | BBQ10_WRITE_MASK, *buffer);
+	case BBQX0KBD_I2C_ADDRESS:
+		returnValue = i2c_smbus_write_byte_data(i2c_client, registerAddress | BBQX0KBD_WRITE_MASK, *buffer);
 		if (returnValue != 0) {
 			dev_err(&i2c_client->dev, "%s Could not write to register 0x%02X, Error: %d\n", __func__, registerAddress, returnValue);
 			return returnValue;
@@ -36,7 +36,7 @@ extern int bbqX0kbd_read(struct i2c_client *i2c_client, uint8_t deviceAddress, u
 	int returnValue;
 
 	switch (deviceAddress) {
-	case BBQ10_I2C_ADDRESS:
+	case BBQX0KBD_I2C_ADDRESS:
 	{
 		if (bufferSize == 2*sizeof(uint8_t)) {
 			returnValue = i2c_smbus_read_word_data(i2c_client, registerAddress);

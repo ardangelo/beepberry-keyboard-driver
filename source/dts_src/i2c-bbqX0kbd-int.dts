@@ -14,7 +14,15 @@
 			bbqX0kbd: bbqX0kbd@1f {
 				compatible = "wallComputer,bbqX0kbd";
 				reg = <0x1F>;
+				irq-gpio = <&gpio 11 0x2>;
+				interrupts = <11 2>;
+				interrupt-parent = <&gpio>;
+				interrupt-controller;
 			};
 		};
 	};
+	__overrides__ {
+		irq_pin = <&bbqX0kbd>,"interrupts:0";
+	};
 };
+

@@ -21,15 +21,18 @@
 #include <linux/workqueue.h>
 #include <linux/ktime.h>
 
+#include "config.h"
 #include "bbqX0kbd_i2cHelper.h"
-#include "bbq10kbd_registers.h"
-#include "bbq10kbd_codes.h"
+#include "bbqX0kbd_registers.h"
 #include "debug_levels.h"
-
-
-#ifdef BBQ10KBD_REGISTERS_H_
-#define BBQX0KBD_I2C_ADDRESS	BBQ10_I2C_ADDRESS
-#define BBQX0KBD_FIFO_SIZE		BBQ10_FIFO_SIZE
+#if (BBQX0KBD_TYPE == BBQ10KBD_PMOD)
+#include "bbq10kbd_pmod_codes.h"
+#endif
+#if (BBQX0KBD_TYPE == BBQ10KBD_FEATHERWING)
+#include "bbq10kbd_featherwing_codes.h"
+#endif
+#if (BBQX0KBD_TYPE == BBQ20KBD_PMOD)
+#include "bbq20kbd_pmod_codes.h"
 #endif
 
 #define COMPATIBLE_NAME			"wallComputer,bbqX0kbd"
@@ -52,17 +55,37 @@
 #define CAPS_LOCK_BIT			BIT(0)
 #define NUMS_LOCK_BIT			BIT(1)
 
+#if (BBQX0KBD_INT == BBQX0KBD_NO_INT)
+#define BBQX0KBD_DEFAULT_WORK_RATE	40
+#define BBQX0KBD_MINIMUM_WORK_RATE	10
+#define BBQX0KBD_MAXIMUM_WORK_RATE	1000
+#endif
+
 struct bbqX0kbd_data {
+#if (BBQX0KBD_INT == BBQX0KBD_USE_INT)
 	struct work_struct work_struct;
+	uint8_t fifoCount;
+	uint8_t fifoData[BBQX0KBD_FIFO_SIZE][2];
+#else
+	struct delayed_work delayed_work;
+	struct workqueue_struct *workqueue_struct;
+	uint8_t work_rate_ms;
+#endif
+
+#if (BBQX0KBD_TYPE == BBQ20KBD_PMOD)
+	uint8_t touchInt;
+	int8_t rel_x;
+	int8_t rel_y;
+#endif
 	uint8_t version_number;
 	uint8_t modifier_keys_status;
 	uint8_t lockStatus;
 	uint8_t keyboardBrightness;
 	uint8_t lastKeyboardBrightness;
+#if (BBQX0KBD_TYPE == BBQ10KBD_FEATHERWING)
 	uint8_t screenBrightness;
 	uint8_t lastScreenBrightness;
-	uint8_t fifoCount;
-	uint8_t fifoData[BBQX0KBD_FIFO_SIZE][2];
+#endif
 	unsigned short keycode[NUM_KEYCODES];
 	struct i2c_client *i2c_client;
 	struct input_dev *input_dev;
