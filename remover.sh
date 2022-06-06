@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 if sudo rmmod bbqX0kbd ; then
 
