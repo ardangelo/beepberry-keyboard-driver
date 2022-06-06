@@ -169,13 +169,14 @@ cd bbqX0kbd_driver/
 ### Installation
 - To install the files with default configurations, use the `installer.sh` file.
   ```bash
-  ./installer.sh
+  ./installer.sh --OPTION VALUE
   ```
+  Where `--OPTION` is  valid configuration option discussed below.
 - To remove, use the `remover.sh` file.
   ```bash
   ./remover.sh
   ```
-##Installtion Options
+## Installtion Options
 The installation script `installer.sh` has multiple options. The description of these can be accessed by `-h` or `--h` option as below
 ```bash
   ./installer.sh -h
