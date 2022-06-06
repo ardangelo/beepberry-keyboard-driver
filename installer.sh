@@ -47,7 +47,7 @@ This creates the kernel driver for BBQ20KBD_PMOD and uses the trackpad as KEY_UP
 
 while [ $# -gt 0 ]; do
 
-   if [ "$1" == "-h" -o "$1" == "--h" ]; then
+   if [ "$1" == "-h" -o "$1" == "--h" -o "$1" == "-H" -o "$1" == "--H" ]; then
       echo "$usage"
       exit 1;
    fi

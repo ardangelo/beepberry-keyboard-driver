@@ -29,9 +29,9 @@
  *	|LFTALT|  Z  | X  | C  | V  |  B |  N |  M  |  $  | ENTER |
  *	|      |   K+|  K-|   °|   <|DOWN|>   |MENU |Vx   |       |
  *	+------+-----+----+----+----+----+----+-----+-----+-------+
- *	|            |0   |                TAB|     |             |
+ *	|            |0   |TAB                |     |             |
  *	| LEFT_SHIFT | ~  |       SPACE       |RTALT| RIGHT_SHIFT |
- *	|            |  Kx|&                  |     |             |
+ *	|            |  Kx|                  &|     |             |
  *	+------------+----+-------------------+-----+-------------+
  *
  * Notes:
@@ -41,7 +41,6 @@
  *
  * Changes from arturo182's layout, if you are used to that, it's good to know these changes.
  * 1. Sym Key (Scancode 0x1D) on Keyboard is mapped to RTALT.
- * 2. Note "|" above Enter Key as per original keyboard layout is removed and added under "A"
  * 3. The external buttons on the Keyboard Featherwing have been changed as below:
  *__3.1 Leftmost Button changed from Menu Key to Left Ctrl Key.
  *__3.2 Innet Left Button changed from Left Ctrl Key to Page Up Key.
