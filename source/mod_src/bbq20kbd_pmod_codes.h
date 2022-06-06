@@ -4,34 +4,34 @@
  * bbq10kbd_codes.h: Keyboard Layout and Scancodes-Keycodes mapping.
  */
 
-#ifndef BBQ10KBD_CODES_H_
-#define BBQ10KBD_CODES_H_
+#ifndef BBQ10KBD_FEATHERWING_CODES_H_
+#define BBQ10KBD_FEATHERWING_CODES_H_
 
 /*
- *						KEYBOARD LAYOUT
+ *					BBQ20KBD PMOD KEYBOARD LAYOUT
  *
  *	+------+-----+----+----+----+----+----+-----+-----+-------+
- *	|      |          |        UP         |           |       |
- *	| Ctrl |   PgUp   |  LEFT HOME RIGHT  |   PgDn    | MENU  |
- *	|      |          |       DOWN        |           |       |
+ *	|      |          |BR     ↑TPY-       |           |       |
+ *	| Ctrl |   PgDn   |←TPX- BL(HOME)TPX+→|   PgUp    | MENU  |
+ *	|      |          |       ↓TPY+       |           |       |
  *	+------+-----+----+----+----+----+----+-----+-----+-------+
  *	|                                                         |
  *	+------+-----+----+----+----+----+----+-----+-----+-------+
  *	|#     |1    |2   |3   |(   |   )|_   |    -|    +|      @|
  *	|  Q   |  W  | E  | R  | T  |  Y |  U |  I  |  O  |   P   |
- *	|    S+|   S-|PgUp|PgDn|   \|UP  |^   |=    |{    |}      |
+ *	|      |     |PgDn|PgUp|   \|UP  |^   |=    |{    |}      |
  *	+------+-----+----+----+----+----+----+-----+-----+-------+
  *	|*     |4    |5   |6   |/   |   :|;   |    '|    "|    ESC|
  *	|  A   |  S  | D  | F  | G  |  H |  J |  K  |  L  |  BKSP |
- *	|     ||   Sx|   [|   ]|LEFT|HOME|RGHT|K+   |K-   |DLT    |
+ *	|     ?|     |   [|   ]|LEFT|HOME|RGHT|V+   |V-   |DLT    |
  *	+------+-----+----+----+----+----+----+-----+-----+-------+
  *	|      |7    |8   |9   |?   |   !|,   |    .|    `|       |
  *	|LFTALT|  Z  | X  | C  | V  |  B |  N |  M  |  $  | ENTER |
- *	|      |   V+|  V-|   °|   <|DOWN|>   |MENU |Kx   |       |
+ *	|      |   K+|  K-|   °|   <|DOWN|>   |MENU |Vx   |       |
  *	+------+-----+----+----+----+----+----+-----+-----+-------+
  *	|            |0   |                TAB|     |             |
  *	| LEFT_SHIFT | ~  |       SPACE       |RTALT| RIGHT_SHIFT |
- *	|            |  Vx|&                  |     |             |
+ *	|            |  Kx|&                  |     |             |
  *	+------------+----+-------------------+-----+-------------+
  *
  * Notes:
@@ -54,15 +54,22 @@
 #define NUM_KEYCODES	256
 
 static unsigned short keycodes[NUM_KEYCODES] = {
-	[0x01] = KEY_UP,
-	[0x02] = KEY_DOWN,
-	[0x03] = KEY_LEFT,
-	[0x04] = KEY_RIGHT,
+
+	/*
+	 *[0x01] = KEY_UP,
+	 *[0x02] = KEY_DOWN,
+	 *[0x03] = KEY_LEFT,
+	 *[0x04] = KEY_RIGHT,
+	 */
+#if (BBQ20KBD_TRACKPAD_USE == BBQ20KBD_TRACKPAD_AS_MOUSE)
+	[0x05] = BTN_LEFT,
+#elif (BBQ20KBD_TRACKPAD_USE == BBQ20KBD_TRACKPAD_AS_KEYS)
 	[0x05] = KEY_HOME,
+#endif
 
 	[0x06] = KEY_LEFTCTRL,
-	[0x11] = KEY_PAGEUP,
-	[0x07] = KEY_PAGEDOWN,
+	[0x11] = KEY_PAGEDOWN,
+	[0x07] = KEY_PAGEUP,
 	[0x12] = KEY_MENU,
 
 	[0x1A] = KEY_LEFTALT,
@@ -126,6 +133,13 @@ static unsigned short keycodes[NUM_KEYCODES] = {
 	['e'] = KEY_DELETE,
 	['f'] = KEY_ESC,
 	['='] = KEY_EQUAL,
+	['g'] = BTN_LEFT,
+	['h'] = BTN_RIGHT,
+	['i'] = KEY_UP,
+	['j'] = KEY_DOWN,
+	['k'] = KEY_LEFT,
+	['l'] = KEY_RIGHT,
+	['m'] = KEY_HOME,
 };
 
 

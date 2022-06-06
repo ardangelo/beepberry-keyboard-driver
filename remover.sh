@@ -4,12 +4,13 @@ if sudo rmmod bbqX0kbd ; then
 
 	sudo sed -i '/bbqX0kbd/d' /boot/config.txt
 	sudo rm -rf /boot/overlays/i2c-bbqX0kbd.dtbo
+	rm -rf source/dts_src/i2c-bbqX0kbd.dts
 
 	sudo sed -i '/bbqX0kbd/d' /etc/modules
 	sudo rm -rf /lib/modules/$(uname -r)/kernel/drivers/i2c/bbqX0kbd.ko
 
-	sudo sed -i '/bbq10kbd/d' /etc/default/keyboard
-	sudo rm -rf /usr/local/share/kbd/keymaps/bbq10kbd.map
+	sudo sed -i '/bbqX0kbd/d' /etc/default/keyboard
+	sudo rm -rf /usr/local/share/kbd/keymaps/bbqX0kbd.map
 
 	make clean
 else
