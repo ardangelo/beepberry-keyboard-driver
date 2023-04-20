@@ -70,6 +70,7 @@ static unsigned short keycodes[NUM_KEYCODES] = {
 	[0x11] = KEY_PAGEDOWN,
 	[0x07] = KEY_PAGEUP,
 	[0x12] = KEY_MENU,
+	[0xEE] = KEY_POWER,
 
 	[0x1A] = KEY_LEFTALT,
 	[0x1B] = KEY_LEFTSHIFT,
