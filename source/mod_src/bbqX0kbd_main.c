@@ -541,8 +541,9 @@ static int bbqX0kbd_probe(struct i2c_client *client, const struct i2c_device_id 
 		return -ENOMEM;
 	bbqX0kbd_data->i2c_client = client;
 	memcpy(bbqX0kbd_data->keycode, keycodes, sizeof(bbqX0kbd_data->keycode));
-
-	returnValue = bbqX0kbd_write(client, BBQX0KBD_I2C_ADDRESS, REG_RST, &registerValue, sizeof(uint8_t));
+	
+	//don't reset the keyboard as it controls the pi's power
+	returnValue = 0; //bbqX0kbd_write(client, BBQX0KBD_I2C_ADDRESS, REG_RST, &registerValue, sizeof(uint8_t));
 	if (returnValue) {
 		dev_err(&client->dev, "%s Could not Reset BBQX0KBD. Error: %d\n", __func__, returnValue);
 		return -ENODEV;
