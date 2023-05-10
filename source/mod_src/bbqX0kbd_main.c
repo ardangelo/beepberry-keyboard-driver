@@ -456,6 +456,24 @@ static void bbqX0kbd_work_fnc(struct work_struct *work_struct_ptr)
 		input_report_rel(input_dev, REL_X, bbqX0kbd_data->rel_x);
 		input_report_rel(input_dev, REL_Y, bbqX0kbd_data->rel_y);
 		bbqX0kbd_data->touchInt = 0;
+#elif (BBQ20KBD_TRACKPAD_USE == BBQ20KBD_TRACKPAD_AS_KEYS)
+		if((int8_t)registerX < 0){
+			input_report_key(input_dev, KEY_LEFT, TRUE);
+			input_report_key(input_dev, KEY_LEFT, FALSE);
+		}
+		if((int8_t)registerX > 0){
+			input_report_key(input_dev, KEY_RIGHT, TRUE);
+			input_report_key(input_dev, KEY_RIGHT, FALSE);
+		}
+		if((int8_t)registerY < 0){
+			input_report_key(input_dev, KEY_DOWN, TRUE);
+			input_report_key(input_dev, KEY_DOWN, FALSE);
+		}
+		if((int8_t)registerY > 0){
+			input_report_key(input_dev, KEY_UP, TRUE);
+			input_report_key(input_dev, KEY_UP, FALSE);
+		}						
+		bbqX0kbd_data->touchInt = 0;
 #endif
 	}
 #endif
