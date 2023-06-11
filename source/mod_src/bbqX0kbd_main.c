@@ -457,6 +457,25 @@ static void bbqX0kbd_work_fnc(struct work_struct *work_struct_ptr)
 		input_report_rel(input_dev, REL_Y, bbqX0kbd_data->rel_y);
 		bbqX0kbd_data->touchInt = 0;
 #endif
+#if (BBQ20KBD_TRACKPAD_USE == BBQ20KBD_TRACKPAD_AS_KEYS)
+		if(bbqX0kbd_data->rel_x < -4){
+			input_report_key(input_dev, KEY_LEFT, TRUE);
+			input_report_key(input_dev, KEY_LEFT, FALSE);
+		}
+		if(bbqX0kbd_data->rel_x > 4){
+			input_report_key(input_dev, KEY_RIGHT, TRUE);
+			input_report_key(input_dev, KEY_RIGHT, FALSE);
+		}
+		if(bbqX0kbd_data->rel_y < -4){
+			input_report_key(input_dev, KEY_UP, TRUE);
+			input_report_key(input_dev, KEY_UP, FALSE);
+		}
+		if(bbqX0kbd_data->rel_y > 4){
+			input_report_key(input_dev, KEY_DOWN, TRUE);
+			input_report_key(input_dev, KEY_DOWN, FALSE);
+		}						
+		bbqX0kbd_data->touchInt = 0;
+#endif
 	}
 #endif
 
@@ -541,8 +560,9 @@ static int bbqX0kbd_probe(struct i2c_client *client, const struct i2c_device_id 
 		return -ENOMEM;
 	bbqX0kbd_data->i2c_client = client;
 	memcpy(bbqX0kbd_data->keycode, keycodes, sizeof(bbqX0kbd_data->keycode));
-
-	returnValue = bbqX0kbd_write(client, BBQX0KBD_I2C_ADDRESS, REG_RST, &registerValue, sizeof(uint8_t));
+	
+	//don't reset the keyboard as it controls the pi's power
+	returnValue = 0; //bbqX0kbd_write(client, BBQX0KBD_I2C_ADDRESS, REG_RST, &registerValue, sizeof(uint8_t));
 	if (returnValue) {
 		dev_err(&client->dev, "%s Could not Reset BBQX0KBD. Error: %d\n", __func__, returnValue);
 		return -ENODEV;
