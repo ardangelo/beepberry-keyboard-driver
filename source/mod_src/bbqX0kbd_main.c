@@ -277,23 +277,98 @@ static void bbqX0kbd_read_fifo(struct bbqX0kbd_data *bbqX0kbd_data)
 	}
 }
 
+static void report_state_and_scancode(struct bbqX0kbd_data* kbd_ctx,
+	uint8_t key_state, uint8_t key_scancode)
+{
+	unsigned short keycode;
+	uint8_t should_report_key = 2; // Report by default
+
+	// Only handle key pressed or released events
+	if ((key_state != KEY_PRESSED_STATE) && (key_state != KEY_RELEASED_STATE)) {
+		return;
+	}
+
+	// Post key scan event
+	input_event(kbd_ctx->input_dev, EV_MSC, MSC_SCAN, key_scancode);
+
+	// Map input scancode to Linux input keycode
+	keycode = kbd_ctx->keycode[key_scancode];
+	dev_info(&kbd_ctx->i2c_client->dev,
+		"%s state %d, scancode %d mapped to keycode %d\n",
+		__func__, key_state, key_scancode, keycode);
+
+	// Set / get modifiers, report key event
+	switch (keycode) {
+
+	case KEY_UNKNOWN:
+		dev_warn(&kbd_ctx->i2c_client->dev,
+			"%s Could not get Keycode for Scancode: [0x%02X]\n",
+				__func__, key_scancode);
+		break;
+
+	case KEY_RIGHTSHIFT:
+		if ((kbd_ctx->modifier_keys_status & LEFT_ALT_BIT)
+		 && (key_state == KEY_PRESSED_STATE)) {
+
+			// Set numlock (AltGr) mode
+			kbd_ctx->lockStatus ^= NUMS_LOCK_BIT;
+		}
+		fallthrough;
+
+	case KEY_LEFTSHIFT:
+	case KEY_RIGHTALT:
+	case KEY_LEFTALT:
+	case KEY_LEFTCTRL:
+	case KEY_RIGHTCTRL:
+		if (key_state == KEY_PRESSED_STATE) {
+			kbd_ctx->modifier_keys_status |= bbqX0kbd_modkeys_to_bits(keycode);
+		} else {
+			kbd_ctx->modifier_keys_status &= ~bbqX0kbd_modkeys_to_bits(keycode);
+		}
+		fallthrough;
+
+	default:
+		if (kbd_ctx->lockStatus & NUMS_LOCK_BIT) {
+			keycode = bbqX0kbd_get_num_lock_keycode(keycode);
+
+		} else if (kbd_ctx->modifier_keys_status & RIGHT_ALT_BIT) {
+			keycode = bbqX0kbd_get_altgr_keycode(keycode);
+
+		#if (BBQ20KBD_TRACKPAD_USE == BBQ20KBD_TRACKPAD_AS_MOUSE)
+		} else if ((kbd_ctx->modifier_keys_status & LEFT_ALT_BIT)
+				&& (keycode == KEY_ENTER)) {
+			keycode = BTN_RIGHT;
+		#endif
+		}
+
+		if ((kbd_ctx->modifier_keys_status & RIGHT_ALT_BIT)
+			&& (key_state == KEY_PRESSED_STATE)) {
+
+			// Set brightness if proper key is pressed
+			// If so, don't report the key to input
+			bbqX0kbd_set_brightness(kbd_ctx, keycode, &should_report_key);
+		}
+
+		// If input was not consumed by brightness setting, report key to input
+		if (should_report_key == 2) {
+			input_report_key(kbd_ctx->input_dev, keycode,
+				key_state == KEY_PRESSED_STATE);
+			break;
+		}
+	}
+}
+
 static void bbqX0kbd_work_fnc(struct work_struct *work_struct_ptr)
 {
-	struct bbqX0kbd_data *bbqX0kbd_data;
-	struct input_dev *input_dev;
-	struct i2c_client *i2c_client;
-	unsigned short keycode;
+	struct bbqX0kbd_data *kbd_ctx;
+	uint8_t fifo_idx = 0;
+	int rc;
 
-	uint8_t pos = 0;
-	uint8_t reportKey = 2;
-	uint8_t registerValue = 0x00;
-	int returnValue = 0;
+	// Get keyboard context from work struct
+	kbd_ctx = container_of(work_struct_ptr, struct bbqX0kbd_data, work_struct);
 
-	bbqX0kbd_data = container_of(work_struct_ptr, struct bbqX0kbd_data, work_struct);
-	input_dev = bbqX0kbd_data->input_dev;
-	i2c_client = bbqX0kbd_data->i2c_client;
-
-	while (bbqX0kbd_data->fifoCount > 0) {
+	while (kbd_ctx->fifoCount > 0) {
+#if 0
 		if (bbqX0kbd_data->fifoData[pos][0] == KEY_PRESSED_STATE || bbqX0kbd_data->fifoData[pos][0] == KEY_RELEASED_STATE) {
 		dev_info(&i2c_client->dev, "%s Input event: KeyState:%d SCANCODE:%d\n",
 			__func__, bbqX0kbd_data->fifoData[pos][0], bbqX0kbd_data->fifoData[pos][1]);
@@ -340,90 +415,138 @@ static void bbqX0kbd_work_fnc(struct work_struct *work_struct_ptr)
 				break;
 			}
 		}
-		++pos;
-		--bbqX0kbd_data->fifoCount;
+#else
+		report_state_and_scancode(kbd_ctx,
+			kbd_ctx->fifoData[fifo_idx][0],  // Key state
+			kbd_ctx->fifoData[fifo_idx][1]); // Key scancode
+#endif
+
+		// Advance FIFO position
+		fifo_idx++;
+		kbd_ctx->fifoCount--;
 	}
 
-	if (bbqX0kbd_data->touchInt) {
-		dev_info_ld(&i2c_client->dev, "%s X Reg: %d Y Reg: %d.\n", __func__, bbqX0kbd_data->rel_x, bbqX0kbd_data->rel_y);
-#if (BBQ20KBD_TRACKPAD_USE == BBQ20KBD_TRACKPAD_AS_MOUSE)
-		input_report_rel(input_dev, REL_X, bbqX0kbd_data->rel_x);
-		input_report_rel(input_dev, REL_Y, bbqX0kbd_data->rel_y);
-		bbqX0kbd_data->touchInt = 0;
-#endif
-#if (BBQ20KBD_TRACKPAD_USE == BBQ20KBD_TRACKPAD_AS_KEYS)
-		if(bbqX0kbd_data->rel_x < -4){
-			input_report_key(input_dev, KEY_LEFT, TRUE);
-			input_report_key(input_dev, KEY_LEFT, FALSE);
-		}
-		if(bbqX0kbd_data->rel_x > 4){
-			input_report_key(input_dev, KEY_RIGHT, TRUE);
-			input_report_key(input_dev, KEY_RIGHT, FALSE);
-		}
-		if(bbqX0kbd_data->rel_y < -4){
-			input_report_key(input_dev, KEY_UP, TRUE);
-			input_report_key(input_dev, KEY_UP, FALSE);
-		}
-		if(bbqX0kbd_data->rel_y > 4){
-			input_report_key(input_dev, KEY_DOWN, TRUE);
-			input_report_key(input_dev, KEY_DOWN, FALSE);
-		}
-		bbqX0kbd_data->touchInt = 0;
-#endif
+	// Handle touch interrupt flag
+	if (kbd_ctx->touchInt) {
+
+		dev_info_ld(&kbd_ctx->i2c_client->dev,
+			"%s X Reg: %d Y Reg: %d.\n",
+			__func__, kbd_ctx->rel_x, kbd_ctx->rel_y);
+
+		#if (BBQ20KBD_TRACKPAD_USE == BBQ20KBD_TRACKPAD_AS_MOUSE)
+
+			// Report mouse movement
+			input_report_rel(input_dev, REL_X, kbd_ctx->rel_x);
+			input_report_rel(input_dev, REL_Y, kbd_ctx->rel_y);
+
+			// Clear touch interrupt flag
+			kbd_ctx->touchInt = 0;
+		#endif
+
+		#if (BBQ20KBD_TRACKPAD_USE == BBQ20KBD_TRACKPAD_AS_KEYS)
+
+			// Negative X: left arrow key
+			if (kbd_ctx->rel_x < -4) {
+				input_report_key(kbd_ctx->input_dev, KEY_LEFT, TRUE);
+				input_report_key(kbd_ctx->input_dev, KEY_LEFT, FALSE);
+
+			// Positive X: right arrow key
+			} else if (kbd_ctx->rel_x > 4) {
+				input_report_key(kbd_ctx->input_dev, KEY_RIGHT, TRUE);
+				input_report_key(kbd_ctx->input_dev, KEY_RIGHT, FALSE);
+			}
+
+			// Negative Y: up arrow key
+			if (kbd_ctx->rel_y < -4) {
+				input_report_key(kbd_ctx->input_dev, KEY_UP, TRUE);
+				input_report_key(kbd_ctx->input_dev, KEY_UP, FALSE);
+
+			// Positive Y: down arrow key
+			} else if (kbd_ctx->rel_y > 4) {
+				input_report_key(kbd_ctx->input_dev, KEY_DOWN, TRUE);
+				input_report_key(kbd_ctx->input_dev, KEY_DOWN, FALSE);
+			}
+
+			// Clear touch interrupt flag
+			kbd_ctx->touchInt = 0;
+		#endif
 	}
 
-	input_sync(input_dev);
-	registerValue = 0x00;
-	returnValue = bbqX0kbd_write(i2c_client, BBQX0KBD_I2C_ADDRESS, REG_INT, &registerValue, sizeof(uint8_t));
-	if (returnValue < 0)
-		dev_err(&i2c_client->dev, "%s Could not clear REG_INT. Error: %d\n", __func__, returnValue);
+	// Synchronize input system and clear client interrupt flag
+	input_sync(kbd_ctx->input_dev);
+	if ((rc = kbd_write_i2c_u8(kbd_ctx->i2c_client, REG_INT, 0)) < 0) {
+		dev_err(&kbd_ctx->i2c_client->dev,
+			"%s Could not clear REG_INT. Error: %d\n",
+			__func__, rc);
+	}
 }
 
-static irqreturn_t bbqX0kbd_irq_handler(int irq, void *dev_id)
+static irqreturn_t bbqX0kbd_irq_handler(int irq, void *param)
 {
-	struct bbqX0kbd_data *bbqX0kbd_data = dev_id;
-	struct i2c_client *client = bbqX0kbd_data->i2c_client;
-	int returnValue;
-	uint8_t registerValue;
+	struct bbqX0kbd_data *kbd_ctx;
+	int rc;
+	uint8_t irq_type, reg_value;
 
-	dev_info_ld(&client->dev, "%s Interrupt Fired. IRQ: %d\n", __func__, irq);
+	// `param` is current keyboard context as started in _probe
+	kbd_ctx = (struct bbqX0kbd_data *)param;
 
-	returnValue = bbqX0kbd_read(client, BBQX0KBD_I2C_ADDRESS, REG_INT, &registerValue, sizeof(uint8_t));
-	if (returnValue < 0) {
-		dev_err(&client->dev, "%s: Could not read REG_INT. Error: %d\n", __func__, returnValue);
+	dev_info_ld(&kbd_ctx->i2c_client->dev,
+		"%s Interrupt Fired. IRQ: %d\n", __func__, irq);
+
+	// Read interrupt type from client
+	if ((rc = kbd_read_i2c_u8(kbd_ctx->i2c_client, REG_INT, &irq_type)) < 0) {
+		dev_err(&kbd_ctx->i2c_client->dev,
+			"%s: Could not read REG_INT. Error: %d\n", __func__, rc);
 		return IRQ_NONE;
 	}
 
-	dev_info_ld(&client->dev, "%s Interrupt: 0x%02x\n", __func__, registerValue);
+	dev_info_ld(&kbd_ctx->i2c_client->dev,
+		"%s Interrupt type: 0x%02x\n", __func__, irq_type);
 
-	if (registerValue == 0x00)
+	// Reported no interrupt type
+	if (irq_type == 0x00) {
 		return IRQ_NONE;
-
-	if (registerValue & REG_INT_OVERFLOW)
-		dev_warn(&client->dev, "%s overflow occurred.\n", __func__);
-
-	if (registerValue & REG_INT_KEY) {
-		bbqX0kbd_read_fifo(bbqX0kbd_data);
-		schedule_work(&bbqX0kbd_data->work_struct);
 	}
 
-	if (registerValue & REG_INT_TOUCH) {
-		returnValue = bbqX0kbd_read(client, BBQX0KBD_I2C_ADDRESS, REG_TOX, &registerValue, sizeof(uint8_t));
-		if (returnValue < 0) {
-			dev_err(&client->dev, "%s : Could not read REG_TOX. Error: %d\n", __func__, returnValue);
+	// Client reported a key overflow
+	if (irq_type & REG_INT_OVERFLOW) {
+		dev_warn(&kbd_ctx->i2c_client->dev, "%s overflow occurred.\n", __func__);
+	}
+
+	// Client reported a key event
+	if (irq_type & REG_INT_KEY) {
+		bbqX0kbd_read_fifo(kbd_ctx);
+		schedule_work(&kbd_ctx->work_struct);
+	}
+
+	// Client reported a touch event
+	if (irq_type & REG_INT_TOUCH) {
+
+		// Read touch X-coordinate
+		if ((rc = kbd_read_i2c_u8(kbd_ctx->i2c_client, REG_TOX, &reg_value)) < 0) {
+			dev_err(&kbd_ctx->i2c_client->dev,
+				"%s : Could not read REG_TOX. Error: %d\n", __func__, rc);
 			return IRQ_NONE;
 		}
-		bbqX0kbd_data->rel_x = (int8_t)registerValue;
-		returnValue = bbqX0kbd_read(client, BBQX0KBD_I2C_ADDRESS, REG_TOY, &registerValue, sizeof(uint8_t));
-		if (returnValue < 0) {
-			dev_err(&client->dev, "%s : Could not read REG_TOY. Error: %d\n", __func__, returnValue);
+		kbd_ctx->rel_x = reg_value;
+
+		// Read touch Y-coordinate
+		if ((rc = kbd_read_i2c_u8(kbd_ctx->i2c_client, REG_TOY, &reg_value)) < 0) {
+			dev_err(&kbd_ctx->i2c_client->dev,
+				"%s : Could not read REG_TOY. Error: %d\n", __func__, rc);
 			return IRQ_NONE;
 		}
-		bbqX0kbd_data->rel_y = (int8_t)registerValue;
-		bbqX0kbd_data->touchInt = 1;
-		schedule_work(&bbqX0kbd_data->work_struct);
-	} else
-		bbqX0kbd_data->touchInt = 0;
+		kbd_ctx->rel_y = reg_value;
+
+		// Set touch event flag and schedule touch work
+		kbd_ctx->touchInt = 1;
+		schedule_work(&kbd_ctx->work_struct);
+
+	} else {
+
+		// Clear touch event flag
+		kbd_ctx->touchInt = 0;
+	}
 
 	return IRQ_HANDLED;
 }
@@ -526,10 +649,10 @@ static int bbqX0kbd_probe(struct i2c_client* i2c_client, struct i2c_device_id co
 
 	// Set input device capabilities
 	input_set_capability(kbd_ctx->input_dev, EV_MSC, MSC_SCAN);
-#if (BBQ20KBD_TRACKPAD_USE == BBQ20KBD_TRACKPAD_AS_MOUSE)
-	input_set_capability(kbd_ctx->input_dev, EV_REL, REL_X);
-	input_set_capability(kbd_ctx->input_dev, EV_REL, REL_Y);
-#endif
+	#if (BBQ20KBD_TRACKPAD_USE == BBQ20KBD_TRACKPAD_AS_MOUSE)
+		input_set_capability(kbd_ctx->input_dev, EV_REL, REL_X);
+		input_set_capability(kbd_ctx->input_dev, EV_REL, REL_Y);
+	#endif
 
 	// Request IRQ handler for I2C client and initialize workqueue
 	if ((rc = devm_request_threaded_irq(&i2c_client->dev,
