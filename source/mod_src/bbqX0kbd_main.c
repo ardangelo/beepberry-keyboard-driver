@@ -92,22 +92,40 @@ struct bbqX0kbd_data
 	};
 
 // Helper functions
+
+// Read a single uint8_t value from I2C register
 static int kbd_read_i2c_u8(struct i2c_client* i2c_client, uint8_t reg_addr, uint8_t* dst)
 {
 	return bbqX0kbd_read(i2c_client, BBQX0KBD_I2C_ADDRESS, reg_addr, dst, sizeof(uint8_t));
 }
 
+// Write a single uint8_t value to I2C register
 static int kbd_write_i2c_u8(struct i2c_client* i2c_client, uint8_t reg_addr, uint8_t src)
 {
 	return bbqX0kbd_write(i2c_client, BBQX0KBD_I2C_ADDRESS, reg_addr, &src,
 		sizeof(uint8_t));
 }
 
+// Read two uint8_t values from a 16-bit I2C register
 static int kbd_read_i2c_2u8(struct i2c_client* i2c_client, uint8_t reg_addr, uint8_t* dst)
 {
 	return bbqX0kbd_read(i2c_client, BBQX0KBD_I2C_ADDRESS, reg_addr, dst,
 		2 * sizeof(uint8_t));
 }
+
+// Helper to read a single uint8_t value and handle error reporting
+#define READ_I2C_U8_OR_DEV_ERR(rc, client, reg, dst, on_err) \
+	if ((rc = kbd_read_i2c_u8(client, reg, dst)) < 0) { \
+		dev_err(&client->dev, "%s: Could not read " #reg ". Error: %d\n", __func__, rc); \
+		on_err; \
+	}
+
+// Helper to write a single uint8_t value and handle error reporting
+#define WRITE_I2C_U8_OR_DEV_ERR(rc, client, reg, src, on_err) \
+	if ((rc = kbd_write_i2c_u8(client, reg, src)) < 0) { \
+		dev_err(&client->dev, "%s: Could not write " #reg ". Error: %d\n", __func__, rc); \
+		on_err; \
+	}
 
 static uint8_t bbqX0kbd_modkeys_to_bits(unsigned short mod_keycode)
 {
@@ -273,11 +291,7 @@ static void bbqX0kbd_read_fifo(struct bbqX0kbd_data* kbd_ctx)
 	int rc;
 
 	// Read number of FIFO items
-	if ((rc = kbd_read_i2c_u8(kbd_ctx->i2c_client, REG_KEY, &kbd_ctx->fifo_count))) {
-		dev_err(&kbd_ctx->i2c_client->dev,
-			"%s Could not read REG_KEY, Error: %d\n", __func__, rc);
-		return;
-	}
+	READ_I2C_U8_OR_DEV_ERR(rc, kbd_ctx->i2c_client, REG_KEY, &kbd_ctx->fifo_count, return);
 	kbd_ctx->fifo_count &= REG_KEY_KEYCOUNT_MASK;
 
 	// Read and transfer all FIFO items
@@ -448,11 +462,7 @@ static void bbqX0kbd_work_fnc(struct work_struct *work_struct_ptr)
 
 	// Synchronize input system and clear client interrupt flag
 	input_sync(kbd_ctx->input_dev);
-	if ((rc = kbd_write_i2c_u8(kbd_ctx->i2c_client, REG_INT, 0)) < 0) {
-		dev_err(&kbd_ctx->i2c_client->dev,
-			"%s Could not clear REG_INT. Error: %d\n",
-			__func__, rc);
-	}
+	WRITE_I2C_U8_OR_DEV_ERR(rc, kbd_ctx->i2c_client, REG_INT, 0, return);
 }
 
 static irqreturn_t bbqX0kbd_irq_handler(int irq, void *param)
@@ -468,12 +478,7 @@ static irqreturn_t bbqX0kbd_irq_handler(int irq, void *param)
 		"%s Interrupt Fired. IRQ: %d\n", __func__, irq);
 
 	// Read interrupt type from client
-	if ((rc = kbd_read_i2c_u8(kbd_ctx->i2c_client, REG_INT, &irq_type)) < 0) {
-		dev_err(&kbd_ctx->i2c_client->dev,
-			"%s: Could not read REG_INT. Error: %d\n", __func__, rc);
-		return IRQ_NONE;
-	}
-
+	READ_I2C_U8_OR_DEV_ERR(rc, kbd_ctx->i2c_client, REG_INT, &irq_type, return IRQ_NONE);
 	dev_info_ld(&kbd_ctx->i2c_client->dev,
 		"%s Interrupt type: 0x%02x\n", __func__, irq_type);
 
@@ -497,22 +502,12 @@ static irqreturn_t bbqX0kbd_irq_handler(int irq, void *param)
 	if (irq_type & REG_INT_TOUCH) {
 
 		// Read touch X-coordinate
-		if ((rc = kbd_read_i2c_u8(kbd_ctx->i2c_client, REG_TOX,
-			&kbd_ctx->touch_rel_x)) < 0) {
-
-			dev_err(&kbd_ctx->i2c_client->dev,
-				"%s : Could not read REG_TOX. Error: %d\n", __func__, rc);
-			return IRQ_NONE;
-		}
+		READ_I2C_U8_OR_DEV_ERR(rc, kbd_ctx->i2c_client, REG_TOX,
+			&kbd_ctx->touch_rel_x, return IRQ_NONE);
 
 		// Read touch Y-coordinate
-		if ((rc = kbd_read_i2c_u8(kbd_ctx->i2c_client, REG_TOY,
-			&kbd_ctx->touch_rel_y)) < 0) {
-
-			dev_err(&kbd_ctx->i2c_client->dev,
-				"%s : Could not read REG_TOY. Error: %d\n", __func__, rc);
-			return IRQ_NONE;
-		}
+		READ_I2C_U8_OR_DEV_ERR(rc, kbd_ctx->i2c_client, REG_TOY,
+			&kbd_ctx->touch_rel_y, return IRQ_NONE);
 
 		// Set touch event flag and schedule touch work
 		kbd_ctx->touch_event_flag = 1;
@@ -551,43 +546,26 @@ static int bbqX0kbd_probe(struct i2c_client* i2c_client, struct i2c_device_id co
 	kbd_ctx->last_brightness = 0xFF;
 
 	// Get firmware version
-	if ((rc = kbd_read_i2c_u8(i2c_client, REG_VER, &kbd_ctx->version_number))) {
-		dev_err(&i2c_client->dev,
-			"%s Could not Read Version BBQX0KBD. Error: %d\n", __func__, rc);
-		return -ENODEV;
-	}
+	READ_I2C_U8_OR_DEV_ERR(rc, i2c_client, REG_VER, &kbd_ctx->version_number,
+		return -ENODEV);
 	dev_info(&i2c_client->dev,
 		"%s BBQX0KBD indev Software version: 0x%02X\n", __func__, kbd_ctx->version_number);
 
 	// Write configuration 1
-	if ((rc = kbd_write_i2c_u8(i2c_client, REG_CFG, REG_CFG_DEFAULT_SETTING))) {
-		dev_err(&i2c_client->dev,
-			"%s Could not write config to BBQX0KBD. Error: %d\n", __func__, rc);
-		return -ENODEV;
-	}
+	WRITE_I2C_U8_OR_DEV_ERR(rc, i2c_client, REG_CFG, REG_CFG_DEFAULT_SETTING,
+		return -ENODEV);
 
 	// Read back configuration 1 setting
-	if ((rc = kbd_read_i2c_u8(i2c_client, REG_CFG, &reg_value))) {
-		dev_err(&i2c_client->dev,
-			"%s Could not read REG_CFG. Error: %d\n", __func__, rc);
-		return rc;
-	}
+	READ_I2C_U8_OR_DEV_ERR(rc, i2c_client, REG_CFG, &reg_value, return rc);
 	dev_info_ld(&i2c_client->dev,
 		"%s Configuration Register Value: 0x%02X\n", __func__, reg_value);
 
 	// Write configuration 2
-	if ((rc = kbd_write_i2c_u8(i2c_client, REG_CF2, REG_CFG2_DEFAULT_SETTING))) {
-		dev_err(&i2c_client->dev,
-			"%s Could not write config 2 to BBQX0KBD. Error: %d\n", __func__, rc);
-		return -ENODEV;
-	}
+	WRITE_I2C_U8_OR_DEV_ERR(rc, i2c_client, REG_CF2, REG_CFG2_DEFAULT_SETTING,
+		return -ENODEV);
 
 	// Read back configuration 2 setting
-	if ((rc = kbd_read_i2c_u8(i2c_client, REG_CF2, &reg_value))) {
-		dev_err(&i2c_client->dev,
-			"%s Could not read REG_CF2. Error: %d\n", __func__, rc);
-		return rc;
-	}
+	READ_I2C_U8_OR_DEV_ERR(rc, i2c_client, REG_CF2, &reg_value, return rc);
 	dev_info_ld(&i2c_client->dev,
 		"%s Configuration 2 Register Value: 0x%02X\n",
 		__func__, reg_value);
@@ -661,18 +639,10 @@ static void bbqX0kbd_shutdown(struct i2c_client* i2c_client)
 		"%s Shutting Down Keyboard And Screen Backlight.\n", __func__);
 	
 	// Turn off backlight
-	if ((rc = kbd_write_i2c_u8(i2c_client, REG_BKL, 0))) {
-		dev_err(&i2c_client->dev,
-			"%s Could not write to BBQX0KBD Backlight. Error: %d\n", __func__, rc);
-		return;
-	}
+	WRITE_I2C_U8_OR_DEV_ERR(rc, i2c_client, REG_BKL, 0, return);
 
 	// Read back version
-	if ((rc = kbd_read_i2c_u8(i2c_client, REG_VER, &reg_value))) {
-		dev_err(&i2c_client->dev,
-			"%s Could not read BBQX0KBD Software Version. Error: %d\n", __func__, rc);
-		return;
-	}
+	READ_I2C_U8_OR_DEV_ERR(rc, i2c_client, REG_VER, &reg_value, return);
 }
 
 static void bbqX0kbd_remove(struct i2c_client* i2c_client)
