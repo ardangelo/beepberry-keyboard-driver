@@ -95,6 +95,12 @@ static int kbd_write_i2c_u8(struct i2c_client* i2c_client, uint8_t reg_addr, uin
 		sizeof(uint8_t));
 }
 
+static int kbd_read_i2c_2u8(struct i2c_client* i2c_client, uint8_t reg_addr, uint8_t* dst)
+{
+	return bbqX0kbd_read(i2c_client, BBQX0KBD_I2C_ADDRESS, reg_addr, dst,
+		2 * sizeof(uint8_t));
+}
+
 static uint8_t bbqX0kbd_modkeys_to_bits(unsigned short mod_keycode)
 {
 	uint8_t returnValue;
@@ -213,67 +219,80 @@ static unsigned short bbqX0kbd_get_altgr_keycode(unsigned short keycode)
 	return returnValue;
 }
 
-static void bbqX0kbd_set_brightness(struct bbqX0kbd_data *bbqX0kbd_data, unsigned short keycode, uint8_t *reportKey)
+static void bbqX0kbd_set_brightness(struct bbqX0kbd_data* kbd_ctx,
+	unsigned short keycode, uint8_t* should_report_key)
 {
-	uint8_t swapVar;
+	if (keycode == KEY_Z) {
+		*should_report_key = 0;
 
-	switch (keycode) {
-	case KEY_Z:
-		*reportKey = 0;
-		if (bbqX0kbd_data->keyboardBrightness > 0xFF - BBQ10_BRIGHTNESS_DELTA)
-			bbqX0kbd_data->keyboardBrightness = 0xFF;
-		else
-			bbqX0kbd_data->keyboardBrightness = bbqX0kbd_data->keyboardBrightness + BBQ10_BRIGHTNESS_DELTA;
-		break;
-	case KEY_X:
-		*reportKey = 0;
-		if (bbqX0kbd_data->keyboardBrightness < BBQ10_BRIGHTNESS_DELTA)
-			bbqX0kbd_data->keyboardBrightness = 0;
-		else
-			bbqX0kbd_data->keyboardBrightness = bbqX0kbd_data->keyboardBrightness - BBQ10_BRIGHTNESS_DELTA;
-		break;
-	case KEY_0:
-		*reportKey = 0;
-		swapVar = bbqX0kbd_data->keyboardBrightness;
-		bbqX0kbd_data->keyboardBrightness = (bbqX0kbd_data->keyboardBrightness == 0) ? bbqX0kbd_data->lastKeyboardBrightness : 0;
-		bbqX0kbd_data->lastKeyboardBrightness = swapVar;
-		break;
-	default:
-		*reportKey = 2;
-		break;
+		// Increase by delta, max at 0xff brightness
+		kbd_ctx->keyboardBrightness
+			= (kbd_ctx->keyboardBrightness > (0xff - BBQ10_BRIGHTNESS_DELTA))
+				? 0xff
+				: kbd_ctx->keyboardBrightness + BBQ10_BRIGHTNESS_DELTA;
+
+	} else if (keycode == KEY_X) {
+		*should_report_key = 0;
+
+		// Decrease by delta, min at 0x0 brightness
+		kbd_ctx->keyboardBrightness
+			= (kbd_ctx->keyboardBrightness < BBQ10_BRIGHTNESS_DELTA)
+				? 0x0
+				: kbd_ctx->keyboardBrightness - BBQ10_BRIGHTNESS_DELTA;
+
+	} else if (keycode == KEY_0) {
+		*should_report_key = 0;
+
+		// Toggle off, save last brightness in context
+		kbd_ctx->lastKeyboardBrightness = kbd_ctx->keyboardBrightness;
+		kbd_ctx->keyboardBrightness = 0;
+
+	// Not a brightness control key, don't consume it
+	} else {
+		*should_report_key = 2;
 	}
-	if (*reportKey == 0)
-		bbqX0kbd_write(bbqX0kbd_data->i2c_client, BBQX0KBD_I2C_ADDRESS, REG_BKL, &bbqX0kbd_data->keyboardBrightness, sizeof(uint8_t));
+
+	// If it was a brightness control key, set backlight
+	if (*should_report_key == 0) {
+		(void)kbd_write_i2c_u8(kbd_ctx->i2c_client, REG_BKL, kbd_ctx->keyboardBrightness);
+	}
 }
 
-static void bbqX0kbd_read_fifo(struct bbqX0kbd_data *bbqX0kbd_data)
+// Transfer from I2C FIFO to internal context FIFO
+static void bbqX0kbd_read_fifo(struct bbqX0kbd_data* kbd_ctx)
 {
-	struct i2c_client *i2c_client = bbqX0kbd_data->i2c_client;
-	uint8_t fifo_data[2];
-	uint8_t count;
-	uint8_t pos;
-	int returnValue;
+	uint8_t fifo_count, fifo_idx;
+	int rc;
 
-	returnValue = bbqX0kbd_read(i2c_client, BBQX0KBD_I2C_ADDRESS, REG_KEY, &count, sizeof(uint8_t));
-	if (returnValue != 0) {
-		dev_err(&i2c_client->dev, "%s Could not read REG_KEY, Error: %d\n", __func__, returnValue);
+	// Read number of FIFO items
+	if ((rc = kbd_read_i2c_u8(kbd_ctx->i2c_client, REG_KEY, &fifo_count))) {
+		dev_err(&kbd_ctx->i2c_client->dev,
+			"%s Could not read REG_KEY, Error: %d\n", __func__, rc);
 		return;
 	}
-	count = count & REG_KEY_KEYCOUNT_MASK;
-	bbqX0kbd_data->fifoCount = count;
-	pos = 0;
-	while (count) {
-		returnValue = bbqX0kbd_read(i2c_client, BBQX0KBD_I2C_ADDRESS, REG_FIF, fifo_data, 2*sizeof(uint8_t));
-		if (returnValue != 0) {
-			dev_err(&i2c_client->dev, "%s Could not read REG_FIF, Error: %d\n", __func__, returnValue);
+	fifo_count &= REG_KEY_KEYCOUNT_MASK;
+	kbd_ctx->fifoCount = fifo_count;
+
+	// Read and transfer all FIFO items
+	fifo_idx = 0;
+	while (fifo_count > 0) {
+
+		// Read 2 fifo items
+		if ((rc = kbd_read_i2c_2u8(kbd_ctx->i2c_client, REG_FIF,
+			kbd_ctx->fifoData[fifo_idx]))) {
+
+			dev_err(&kbd_ctx->i2c_client->dev,
+				"%s Could not read REG_FIF, Error: %d\n", __func__, rc);
 			return;
 		}
-		bbqX0kbd_data->fifoData[pos][0] = fifo_data[0];
-		bbqX0kbd_data->fifoData[pos][1] = fifo_data[1];
-		dev_info_ld(&i2c_client->dev, "%s Filled Data: KeyState:%d SCANCODE:%d at Pos: %d Count: %d\n",
-			__func__, bbqX0kbd_data->fifoData[pos][0], bbqX0kbd_data->fifoData[pos][1], pos, count);
-		++pos;
-		--count;
+
+		// Advance FIFO position
+		dev_info_ld(&kbd_ctx->i2c_client->dev,
+			"%s Filled Data: KeyState:%d SCANCODE:%d at Pos: %d Count: %d\n",
+			__func__, kbd_ctx->fifoData[fifo_idx][0], kbd_ctx->fifoData[fifo_idx][1],
+			fifo_idx, fifo_count);
+		fifo_idx++;
+		fifo_count--;
 	}
 }
 
@@ -368,58 +387,9 @@ static void bbqX0kbd_work_fnc(struct work_struct *work_struct_ptr)
 	kbd_ctx = container_of(work_struct_ptr, struct bbqX0kbd_data, work_struct);
 
 	while (kbd_ctx->fifoCount > 0) {
-#if 0
-		if (bbqX0kbd_data->fifoData[pos][0] == KEY_PRESSED_STATE || bbqX0kbd_data->fifoData[pos][0] == KEY_RELEASED_STATE) {
-		dev_info(&i2c_client->dev, "%s Input event: KeyState:%d SCANCODE:%d\n",
-			__func__, bbqX0kbd_data->fifoData[pos][0], bbqX0kbd_data->fifoData[pos][1]);
-			input_event(input_dev, EV_MSC, MSC_SCAN, bbqX0kbd_data->fifoData[pos][1]);
-
-			keycode = bbqX0kbd_data->keycode[bbqX0kbd_data->fifoData[pos][1]];
-			dev_info_ld(&i2c_client->dev, "%s BEFORE: MODKEYS: 0x%02X LOCKKEYS: 0x%02X scancode: %d(%c) keycode: %d State: %d reportKey: %d\n", __func__, 
-			bbqX0kbd_data->modifier_keys_status, bbqX0kbd_data->lockStatus, bbqX0kbd_data->fifoData[pos][1], bbqX0kbd_data->fifoData[pos][1], keycode, bbqX0kbd_data->fifoData[pos][0], reportKey);
-		dev_info(&i2c_client->dev, "%s BEFORE: MODKEYS: 0x%02X LOCKKEYS: 0x%02X scancode: %d(%c) keycode: %d State: %d reportKey: %d\n", __func__, 
-			bbqX0kbd_data->modifier_keys_status, bbqX0kbd_data->lockStatus, bbqX0kbd_data->fifoData[pos][1], bbqX0kbd_data->fifoData[pos][1], keycode, bbqX0kbd_data->fifoData[pos][0], reportKey);
-			switch (keycode) {
-			case KEY_UNKNOWN:
-				dev_warn(&i2c_client->dev, "%s Could not get Keycode for Scancode: [0x%02X]\n", __func__, bbqX0kbd_data->fifoData[pos][1]);
-				break;
-			case KEY_RIGHTSHIFT:
-				if (bbqX0kbd_data->modifier_keys_status & LEFT_ALT_BIT && bbqX0kbd_data->fifoData[pos][0] == KEY_PRESSED_STATE)
-					bbqX0kbd_data->lockStatus ^= NUMS_LOCK_BIT;
-				fallthrough;
-			case KEY_LEFTSHIFT:
-			case KEY_RIGHTALT:
-			case KEY_LEFTALT:
-			case KEY_LEFTCTRL:
-			case KEY_RIGHTCTRL:
-				if (bbqX0kbd_data->fifoData[pos][0] == KEY_PRESSED_STATE)
-					bbqX0kbd_data->modifier_keys_status |= bbqX0kbd_modkeys_to_bits(keycode);
-				else
-					bbqX0kbd_data->modifier_keys_status &= ~bbqX0kbd_modkeys_to_bits(keycode);
-				fallthrough;
-			default:
-				if (bbqX0kbd_data->lockStatus & NUMS_LOCK_BIT)
-					keycode = bbqX0kbd_get_num_lock_keycode(keycode);
-				else if (bbqX0kbd_data->modifier_keys_status & RIGHT_ALT_BIT)
-					keycode = bbqX0kbd_get_altgr_keycode(keycode);
-#if (BBQ20KBD_TRACKPAD_USE == BBQ20KBD_TRACKPAD_AS_MOUSE)
-				else if (bbqX0kbd_data->modifier_keys_status & LEFT_ALT_BIT && bbqX0kbd_data->fifoData[pos][1] == 0x05)
-					keycode = BTN_RIGHT;
-#endif
-
-				if (bbqX0kbd_data->modifier_keys_status & RIGHT_ALT_BIT && bbqX0kbd_data->fifoData[pos][0] == KEY_PRESSED_STATE)
-					bbqX0kbd_set_brightness(bbqX0kbd_data, keycode, &reportKey);
-				dev_info_ld(&i2c_client->dev, "%s BEFORE: MODKEYS: 0x%02X LOCKKEYS: 0x%02X scancode: %d(%c) keycode: %d State: %d reportKey: %d\n", __func__, bbqX0kbd_data->modifier_keys_status, bbqX0kbd_data->lockStatus, bbqX0kbd_data->fifoData[pos][1], bbqX0kbd_data->fifoData[pos][1], keycode, bbqX0kbd_data->fifoData[pos][0], reportKey);
-				if (reportKey == 2)
-					input_report_key(input_dev, keycode, bbqX0kbd_data->fifoData[pos][0] == KEY_PRESSED_STATE);
-				break;
-			}
-		}
-#else
 		report_state_and_scancode(kbd_ctx,
 			kbd_ctx->fifoData[fifo_idx][0],  // Key state
 			kbd_ctx->fifoData[fifo_idx][1]); // Key scancode
-#endif
 
 		// Advance FIFO position
 		fifo_idx++;
