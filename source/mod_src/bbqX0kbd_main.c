@@ -62,26 +62,34 @@
 #define dev_info_ld(...)
 #endif
 
-struct bbqX0kbd_data {
-    struct work_struct work_struct;
-    uint8_t fifoCount;
-    uint8_t fifoData[BBQX0KBD_FIFO_SIZE][2];
+struct bbqX0kbd_data
+{
+	struct work_struct work_struct;
+	uint8_t version_number;
 
-    uint8_t touchInt;
-    int8_t rel_x;
-    int8_t rel_y;
+	// Map from input HID scancodes to Linux keycodes
+	unsigned short keycode_map[NUM_KEYCODES];
 
-    uint8_t version_number;
-    uint8_t modifier_keys_status;
-    uint8_t lockStatus;
-    uint8_t keyboardBrightness;
-    uint8_t lastKeyboardBrightness;
+	// Key state FIFO queue
+	uint8_t fifo_count;
+	uint8_t fifo_data[BBQX0KBD_FIFO_SIZE][2];
 
-	unsigned short keycode[NUM_KEYCODES];
+	// Touch and mouse flags
+	uint8_t touch_event_flag;
+	int8_t touch_rel_x;
+	int8_t touch_rel_y;
 
-    struct i2c_client *i2c_client;
-    struct input_dev *input_dev;
-};
+	// Modifier mode flags and lock status
+	uint8_t modifier_keys_status;
+	uint8_t lock_status;
+
+	// Keyboard brightness
+	uint8_t brightness;
+	uint8_t last_brightness;
+
+	struct i2c_client *i2c_client;
+	struct input_dev *input_dev;
+	};
 
 // Helper functions
 static int kbd_read_i2c_u8(struct i2c_client* i2c_client, uint8_t reg_addr, uint8_t* dst)
@@ -226,26 +234,26 @@ static void bbqX0kbd_set_brightness(struct bbqX0kbd_data* kbd_ctx,
 		*should_report_key = 0;
 
 		// Increase by delta, max at 0xff brightness
-		kbd_ctx->keyboardBrightness
-			= (kbd_ctx->keyboardBrightness > (0xff - BBQ10_BRIGHTNESS_DELTA))
+		kbd_ctx->brightness
+			= (kbd_ctx->brightness > (0xff - BBQ10_BRIGHTNESS_DELTA))
 				? 0xff
-				: kbd_ctx->keyboardBrightness + BBQ10_BRIGHTNESS_DELTA;
+				: kbd_ctx->brightness + BBQ10_BRIGHTNESS_DELTA;
 
 	} else if (keycode == KEY_X) {
 		*should_report_key = 0;
 
 		// Decrease by delta, min at 0x0 brightness
-		kbd_ctx->keyboardBrightness
-			= (kbd_ctx->keyboardBrightness < BBQ10_BRIGHTNESS_DELTA)
+		kbd_ctx->brightness
+			= (kbd_ctx->brightness < BBQ10_BRIGHTNESS_DELTA)
 				? 0x0
-				: kbd_ctx->keyboardBrightness - BBQ10_BRIGHTNESS_DELTA;
+				: kbd_ctx->brightness - BBQ10_BRIGHTNESS_DELTA;
 
 	} else if (keycode == KEY_0) {
 		*should_report_key = 0;
 
 		// Toggle off, save last brightness in context
-		kbd_ctx->lastKeyboardBrightness = kbd_ctx->keyboardBrightness;
-		kbd_ctx->keyboardBrightness = 0;
+		kbd_ctx->last_brightness = kbd_ctx->brightness;
+		kbd_ctx->brightness = 0;
 
 	// Not a brightness control key, don't consume it
 	} else {
@@ -254,32 +262,30 @@ static void bbqX0kbd_set_brightness(struct bbqX0kbd_data* kbd_ctx,
 
 	// If it was a brightness control key, set backlight
 	if (*should_report_key == 0) {
-		(void)kbd_write_i2c_u8(kbd_ctx->i2c_client, REG_BKL, kbd_ctx->keyboardBrightness);
+		(void)kbd_write_i2c_u8(kbd_ctx->i2c_client, REG_BKL, kbd_ctx->brightness);
 	}
 }
 
 // Transfer from I2C FIFO to internal context FIFO
 static void bbqX0kbd_read_fifo(struct bbqX0kbd_data* kbd_ctx)
 {
-	uint8_t fifo_count, fifo_idx;
+	uint8_t fifo_idx;
 	int rc;
 
 	// Read number of FIFO items
-	if ((rc = kbd_read_i2c_u8(kbd_ctx->i2c_client, REG_KEY, &fifo_count))) {
+	if ((rc = kbd_read_i2c_u8(kbd_ctx->i2c_client, REG_KEY, &kbd_ctx->fifo_count))) {
 		dev_err(&kbd_ctx->i2c_client->dev,
 			"%s Could not read REG_KEY, Error: %d\n", __func__, rc);
 		return;
 	}
-	fifo_count &= REG_KEY_KEYCOUNT_MASK;
-	kbd_ctx->fifoCount = fifo_count;
+	kbd_ctx->fifo_count &= REG_KEY_KEYCOUNT_MASK;
 
 	// Read and transfer all FIFO items
-	fifo_idx = 0;
-	while (fifo_count > 0) {
+	for (fifo_idx = 0; fifo_idx < kbd_ctx->fifo_count; fifo_idx++) {
 
 		// Read 2 fifo items
 		if ((rc = kbd_read_i2c_2u8(kbd_ctx->i2c_client, REG_FIF,
-			kbd_ctx->fifoData[fifo_idx]))) {
+			kbd_ctx->fifo_data[fifo_idx]))) {
 
 			dev_err(&kbd_ctx->i2c_client->dev,
 				"%s Could not read REG_FIF, Error: %d\n", __func__, rc);
@@ -289,10 +295,8 @@ static void bbqX0kbd_read_fifo(struct bbqX0kbd_data* kbd_ctx)
 		// Advance FIFO position
 		dev_info_ld(&kbd_ctx->i2c_client->dev,
 			"%s Filled Data: KeyState:%d SCANCODE:%d at Pos: %d Count: %d\n",
-			__func__, kbd_ctx->fifoData[fifo_idx][0], kbd_ctx->fifoData[fifo_idx][1],
+			__func__, kbd_ctx->fifo_data[fifo_idx][0], kbd_ctx->fifo_data[fifo_idx][1],
 			fifo_idx, fifo_count);
-		fifo_idx++;
-		fifo_count--;
 	}
 }
 
@@ -311,7 +315,7 @@ static void report_state_and_scancode(struct bbqX0kbd_data* kbd_ctx,
 	input_event(kbd_ctx->input_dev, EV_MSC, MSC_SCAN, key_scancode);
 
 	// Map input scancode to Linux input keycode
-	keycode = kbd_ctx->keycode[key_scancode];
+	keycode = kbd_ctx->keycode_map[key_scancode];
 	dev_info(&kbd_ctx->i2c_client->dev,
 		"%s state %d, scancode %d mapped to keycode %d\n",
 		__func__, key_state, key_scancode, keycode);
@@ -330,7 +334,7 @@ static void report_state_and_scancode(struct bbqX0kbd_data* kbd_ctx,
 		 && (key_state == KEY_PRESSED_STATE)) {
 
 			// Set numlock (AltGr) mode
-			kbd_ctx->lockStatus ^= NUMS_LOCK_BIT;
+			kbd_ctx->lock_status ^= NUMS_LOCK_BIT;
 		}
 		fallthrough;
 
@@ -347,7 +351,7 @@ static void report_state_and_scancode(struct bbqX0kbd_data* kbd_ctx,
 		fallthrough;
 
 	default:
-		if (kbd_ctx->lockStatus & NUMS_LOCK_BIT) {
+		if (kbd_ctx->lock_status & NUMS_LOCK_BIT) {
 			keycode = bbqX0kbd_get_num_lock_keycode(keycode);
 
 		} else if (kbd_ctx->modifier_keys_status & RIGHT_ALT_BIT) {
@@ -380,24 +384,24 @@ static void report_state_and_scancode(struct bbqX0kbd_data* kbd_ctx,
 static void bbqX0kbd_work_fnc(struct work_struct *work_struct_ptr)
 {
 	struct bbqX0kbd_data *kbd_ctx;
-	uint8_t fifo_idx = 0;
+	uint8_t fifo_idx;
 	int rc;
 
 	// Get keyboard context from work struct
 	kbd_ctx = container_of(work_struct_ptr, struct bbqX0kbd_data, work_struct);
 
-	while (kbd_ctx->fifoCount > 0) {
+	// Process FIFO items
+	for (fifo_idx = 0; fifo_idx < kbd_ctx->fifo_count; fifo_idx++) {
 		report_state_and_scancode(kbd_ctx,
-			kbd_ctx->fifoData[fifo_idx][0],  // Key state
-			kbd_ctx->fifoData[fifo_idx][1]); // Key scancode
-
-		// Advance FIFO position
-		fifo_idx++;
-		kbd_ctx->fifoCount--;
+			kbd_ctx->fifo_data[fifo_idx][0],  // Key state
+			kbd_ctx->fifo_data[fifo_idx][1]); // Key scancode
 	}
 
+	// Reset pending FIFO count
+	kbd_ctx->fifo_count = 0;
+
 	// Handle touch interrupt flag
-	if (kbd_ctx->touchInt) {
+	if (kbd_ctx->touch_event_flag) {
 
 		dev_info_ld(&kbd_ctx->i2c_client->dev,
 			"%s X Reg: %d Y Reg: %d.\n",
@@ -406,39 +410,39 @@ static void bbqX0kbd_work_fnc(struct work_struct *work_struct_ptr)
 		#if (BBQ20KBD_TRACKPAD_USE == BBQ20KBD_TRACKPAD_AS_MOUSE)
 
 			// Report mouse movement
-			input_report_rel(input_dev, REL_X, kbd_ctx->rel_x);
-			input_report_rel(input_dev, REL_Y, kbd_ctx->rel_y);
+			input_report_rel(input_dev, REL_X, kbd_ctx->touch_rel_x);
+			input_report_rel(input_dev, REL_Y, kbd_ctx->touch_rel_y);
 
 			// Clear touch interrupt flag
-			kbd_ctx->touchInt = 0;
+			kbd_ctx->touch_event_flag = 0;
 		#endif
 
 		#if (BBQ20KBD_TRACKPAD_USE == BBQ20KBD_TRACKPAD_AS_KEYS)
 
 			// Negative X: left arrow key
-			if (kbd_ctx->rel_x < -4) {
+			if (kbd_ctx->touch_rel_x < -4) {
 				input_report_key(kbd_ctx->input_dev, KEY_LEFT, TRUE);
 				input_report_key(kbd_ctx->input_dev, KEY_LEFT, FALSE);
 
 			// Positive X: right arrow key
-			} else if (kbd_ctx->rel_x > 4) {
+			} else if (kbd_ctx->touch_rel_x > 4) {
 				input_report_key(kbd_ctx->input_dev, KEY_RIGHT, TRUE);
 				input_report_key(kbd_ctx->input_dev, KEY_RIGHT, FALSE);
 			}
 
 			// Negative Y: up arrow key
-			if (kbd_ctx->rel_y < -4) {
+			if (kbd_ctx->touch_rel_y < -4) {
 				input_report_key(kbd_ctx->input_dev, KEY_UP, TRUE);
 				input_report_key(kbd_ctx->input_dev, KEY_UP, FALSE);
 
 			// Positive Y: down arrow key
-			} else if (kbd_ctx->rel_y > 4) {
+			} else if (kbd_ctx->touch_rel_y > 4) {
 				input_report_key(kbd_ctx->input_dev, KEY_DOWN, TRUE);
 				input_report_key(kbd_ctx->input_dev, KEY_DOWN, FALSE);
 			}
 
 			// Clear touch interrupt flag
-			kbd_ctx->touchInt = 0;
+			kbd_ctx->touch_event_flag = 0;
 		#endif
 	}
 
@@ -455,7 +459,7 @@ static irqreturn_t bbqX0kbd_irq_handler(int irq, void *param)
 {
 	struct bbqX0kbd_data *kbd_ctx;
 	int rc;
-	uint8_t irq_type, reg_value;
+	uint8_t irq_type;
 
 	// `param` is current keyboard context as started in _probe
 	kbd_ctx = (struct bbqX0kbd_data *)param;
@@ -493,29 +497,31 @@ static irqreturn_t bbqX0kbd_irq_handler(int irq, void *param)
 	if (irq_type & REG_INT_TOUCH) {
 
 		// Read touch X-coordinate
-		if ((rc = kbd_read_i2c_u8(kbd_ctx->i2c_client, REG_TOX, &reg_value)) < 0) {
+		if ((rc = kbd_read_i2c_u8(kbd_ctx->i2c_client, REG_TOX,
+			&kbd_ctx->touch_rel_x)) < 0) {
+
 			dev_err(&kbd_ctx->i2c_client->dev,
 				"%s : Could not read REG_TOX. Error: %d\n", __func__, rc);
 			return IRQ_NONE;
 		}
-		kbd_ctx->rel_x = reg_value;
 
 		// Read touch Y-coordinate
-		if ((rc = kbd_read_i2c_u8(kbd_ctx->i2c_client, REG_TOY, &reg_value)) < 0) {
+		if ((rc = kbd_read_i2c_u8(kbd_ctx->i2c_client, REG_TOY,
+			&kbd_ctx->touch_rel_y)) < 0) {
+
 			dev_err(&kbd_ctx->i2c_client->dev,
 				"%s : Could not read REG_TOY. Error: %d\n", __func__, rc);
 			return IRQ_NONE;
 		}
-		kbd_ctx->rel_y = reg_value;
 
 		// Set touch event flag and schedule touch work
-		kbd_ctx->touchInt = 1;
+		kbd_ctx->touch_event_flag = 1;
 		schedule_work(&kbd_ctx->work_struct);
 
 	} else {
 
 		// Clear touch event flag
-		kbd_ctx->touchInt = 0;
+		kbd_ctx->touch_event_flag = 0;
 	}
 
 	return IRQ_HANDLED;
@@ -538,21 +544,20 @@ static int bbqX0kbd_probe(struct i2c_client* i2c_client, struct i2c_device_id co
 
 	// Initialize keyboard context
 	kbd_ctx->i2c_client = i2c_client;
-	memcpy(kbd_ctx->keycode, keycodes, sizeof(kbd_ctx->keycode));
+	memcpy(kbd_ctx->keycode_map, keycodes, sizeof(kbd_ctx->keycode_map));
 	kbd_ctx->modifier_keys_status = 0x00; // Equal to idle state of all keys
-	kbd_ctx->lockStatus = 0x00;
-	kbd_ctx->keyboardBrightness = 0xFF;
-	kbd_ctx->lastKeyboardBrightness = 0xFF;
+	kbd_ctx->lock_status = 0x00;
+	kbd_ctx->brightness = 0xFF;
+	kbd_ctx->last_brightness = 0xFF;
 
 	// Get firmware version
-	if ((rc = kbd_read_i2c_u8(i2c_client, REG_VER, &reg_value))) {
+	if ((rc = kbd_read_i2c_u8(i2c_client, REG_VER, &kbd_ctx->version_number))) {
 		dev_err(&i2c_client->dev,
 			"%s Could not Read Version BBQX0KBD. Error: %d\n", __func__, rc);
 		return -ENODEV;
 	}
 	dev_info(&i2c_client->dev,
-		"%s BBQX0KBD indev Software version: 0x%02X\n", __func__, reg_value);
-	kbd_ctx->version_number = reg_value;
+		"%s BBQX0KBD indev Software version: 0x%02X\n", __func__, kbd_ctx->version_number);
 
 	// Write configuration 1
 	if ((rc = kbd_write_i2c_u8(i2c_client, REG_CFG, REG_CFG_DEFAULT_SETTING))) {
@@ -588,7 +593,7 @@ static int bbqX0kbd_probe(struct i2c_client* i2c_client, struct i2c_device_id co
 		__func__, reg_value);
 
 	// Update keyboard brightness
-	(void)kbd_write_i2c_u8(i2c_client, REG_BKL, kbd_ctx->keyboardBrightness);
+	(void)kbd_write_i2c_u8(i2c_client, REG_BKL, kbd_ctx->brightness);
 
 	// Allocate input device
 	if ((kbd_ctx->input_dev = devm_input_allocate_device(&i2c_client->dev)) == NULL) {
@@ -605,13 +610,13 @@ static int bbqX0kbd_probe(struct i2c_client* i2c_client, struct i2c_device_id co
 	kbd_ctx->input_dev->id.version = BBQX0KBD_VERSION_ID;
 
 	// Initialize input device keycodes
-	kbd_ctx->input_dev->keycode = kbd_ctx->keycode;
-	kbd_ctx->input_dev->keycodesize = sizeof(kbd_ctx->keycode[0]);
-	kbd_ctx->input_dev->keycodemax = ARRAY_SIZE(kbd_ctx->keycode);
+	kbd_ctx->input_dev->keycode = kbd_ctx->keycode_map;
+	kbd_ctx->input_dev->keycodesize = sizeof(kbd_ctx->keycode_map[0]);
+	kbd_ctx->input_dev->keycodemax = ARRAY_SIZE(kbd_ctx->keycode_map);
 
 	// Set input device keycode bits
 	for (i = 0; i < NUM_KEYCODES; i++) {
-		__set_bit(kbd_ctx->keycode[i], kbd_ctx->input_dev->keybit);
+		__set_bit(kbd_ctx->keycode_map[i], kbd_ctx->input_dev->keybit);
 	}
 	__clear_bit(KEY_RESERVED, kbd_ctx->input_dev->keybit);
 	__set_bit(EV_REP, kbd_ctx->input_dev->evbit);
