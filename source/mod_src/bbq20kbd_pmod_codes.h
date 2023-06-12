@@ -4,112 +4,162 @@
  * bbq10kbd_codes.h: Keyboard Layout and Scancodes-Keycodes mapping.
  */
 
-#ifndef BBQ10KBD_FEATHERWING_CODES_H_
-#define BBQ10KBD_FEATHERWING_CODES_H_
-
-/*
- *					BBQ20KBD PMOD KEYBOARD LAYOUT
- *
- *	+------+-----+----+----+----+----+----+-----+-----+-------+
- *	|      |          |BR     ↑TPY-       |           |       |
- *	| Ctrl |   PgDn   |←TPX- BL(HOME)TPX+→|   PgUp    | MENU  |
- *	|      |          |       ↓TPY+       |           |       |
- *	+------+-----+----+----+----+----+----+-----+-----+-------+
- *	|                                                         |
- *	+------+-----+----+----+----+----+----+-----+-----+-------+
- *	|#     |1    |2   |3   |(   |   )|_   |    -|    +|      @|
- *	|  Q   |  W  | E  | R  | T  |  Y |  U |  I  |  O  |   P   |
- *	|      |     |PgDn|PgUp|   \|UP  |^   |=    |{    |}      |
- *	+------+-----+----+----+----+----+----+-----+-----+-------+
- *	|*     |4    |5   |6   |/   |   :|;   |    '|    "|    ESC|
- *	|  A   |  S  | D  | F  | G  |  H |  J |  K  |  L  |  BKSP |
- *	|     ?|     |   [|   ]|LEFT|HOME|RGHT|V+   |V-   |DLT    |
- *	+------+-----+----+----+----+----+----+-----+-----+-------+
- *	|      |7    |8   |9   |?   |   !|,   |    .|    `|       |
- *	|LFTALT|  Z  | X  | C  | V  |  B |  N |  M  |  $  | ENTER |
- *	|      |   K+|  K-|   °|   <|DOWN|>   |MENU |Vx   |       |
- *	+------+-----+----+----+----+----+----+-----+-----+-------+
- *	|            |0   |TAB                |     |             |
- *	| LEFT_SHIFT | ~  |       SPACE       |RTALT| RIGHT_SHIFT |
- *	|            |  Kx|                  &|     |             |
- *	+------------+----+-------------------+-----+-------------+
- *
- * Notes:
- * Most Important to know:
- * To present a character as mentioned above a key in the above layout, use LFTALT + Key.
- * To present a character as mentioned below a key in the above layout, use RTALT + Key.
- *
- * Changes from arturo182's layout, if you are used to that, it's good to know these changes.
- * 1. Sym Key (Scancode 0x1D) on Keyboard is mapped to RTALT.
- * 3. The external buttons on the Keyboard Featherwing have been changed as below:
- *__3.1 Leftmost Button changed from Menu Key to Left Ctrl Key.
- *__3.2 Innet Left Button changed from Left Ctrl Key to Page Up Key.
- *__3.3 Inner Right Button changed from Back Key to Page Down Key.
- *__3.4 Outer Right Button changed from Left Shift Key to Menu Key.
- *__3.5 Center Key of 5-way Button changed from Enter Key to Home Key.
- */
-
+#ifndef BBQ20KBD_PMOD_CODES_H_
+#define BBQ20KBD_PMOD_CODES_H_
 
 #define NUM_KEYCODES	256
 
 static unsigned short keycodes[NUM_KEYCODES] = {
 
-	/*
-	 *[0x01] = KEY_UP,
-	 *[0x02] = KEY_DOWN,
-	 *[0x03] = KEY_LEFT,
-	 *[0x04] = KEY_RIGHT,
-	 */
-#if (BBQ20KBD_TRACKPAD_USE == BBQ20KBD_TRACKPAD_AS_MOUSE)
-	[0x05] = BTN_LEFT,
-#elif (BBQ20KBD_TRACKPAD_USE == BBQ20KBD_TRACKPAD_AS_KEYS)
-	[0x05] = KEY_ENTER,
-#endif
+	// Map USB HID scancodes to Linux keycode
+	[4] = KEY_A,
+	[5] = KEY_B,
+	[6] = KEY_C,
+	[7] = KEY_D,
+	[8] = KEY_E,
+	[9] = KEY_F,
+	[10] = KEY_G,
+	[11] = KEY_H,
+	[12] = KEY_I,
+	[13] = KEY_J,
+	[14] = KEY_K,
+	[15] = KEY_L,
+	[16] = KEY_M,
+	[17] = KEY_N,
+	[18] = KEY_O,
+	[19] = KEY_P,
+	[20] = KEY_Q,
+	[21] = KEY_R,
+	[22] = KEY_S,
+	[23] = KEY_T,
+	[24] = KEY_U,
+	[25] = KEY_V,
+	[26] = KEY_W,
+	[27] = KEY_X,
+	[28] = KEY_Y,
+	[29] = KEY_Z,
+	[30] = KEY_1,
+	[31] = KEY_2,
+	[33] = KEY_4,
+	[34] = KEY_5,
+	[35] = KEY_6,
+	[36] = KEY_7,
+	[37] = KEY_8,
+	[38] = KEY_9,
+	[39] = KEY_0,
+	[40] = KEY_ENTER,
+	[41] = KEY_ESC,
+	[42] = KEY_BACKSPACE,
+	[43] = KEY_TAB,
+	[44] = KEY_SPACE,
+	[45] = KEY_MINUS,
+	[46] = KEY_EQUAL,
+	[47] = KEY_LEFTBRACE,
+	[48] = KEY_RIGHTBRACE,
+	[49] = KEY_BACKSLASH,
+	// No HASHTILDE
+	[51] = KEY_SEMICOLON,
+	[52] = KEY_APOSTROPHE,
+	[53] = KEY_GRAVE,
+	[54] = KEY_COMMA,
+	[55] = KEY_DOT,
+	[56] = KEY_SLASH,
+	[57] = KEY_CAPSLOCK,
+	[58] = KEY_F1,
+	[59] = KEY_F2,
+	[60] = KEY_F3,
+	[61] = KEY_F4,
+	[62] = KEY_F5,
+	[63] = KEY_F6,
+	[64] = KEY_F7,
+	[65] = KEY_F8,
+	[66] = KEY_F9,
+	[67] = KEY_F10,
+	[68] = KEY_F11,
+	[69] = KEY_F12,
+	[70] = KEY_SYSRQ,
+	[71] = KEY_SCROLLLOCK,
+	[72] = KEY_PAUSE,
+	[73] = KEY_INSERT,
+	[74] = KEY_HOME,
+	[75] = KEY_PAGEUP,
+	[76] = KEY_DELETE,
+	[77] = KEY_END,
+	[78] = KEY_PAGEDOWN,
+	[79] = KEY_RIGHT,
+	[80] = KEY_LEFT,
+	[81] = KEY_DOWN,
+	[82] = KEY_UP,
+	[83] = KEY_NUMLOCK,
+	[84] = KEY_KPSLASH,
+	[85] = KEY_KPASTERISK,
+	[86] = KEY_KPMINUS,
+	[87] = KEY_KPPLUS,
+	[88] = KEY_KPENTER,
+	[89] = KEY_KP1,
+	[90] = KEY_KP2,
+	[91] = KEY_KP3,
+	[92] = KEY_KP4,
+	[93] = KEY_KP5,
+	[94] = KEY_KP6,
+	[95] = KEY_KP7,
+	[96] = KEY_KP8,
+	[97] = KEY_KP9,
+	[98] = KEY_KP0,
+	[99] = KEY_KPDOT,
+	[100] = KEY_102ND,
+	[101] = KEY_COMPOSE,
+	[102] = KEY_POWER,
+	[103] = KEY_KPEQUAL,
+	[104] = KEY_F13,
+	[105] = KEY_F14,
+	[106] = KEY_F15,
+	[107] = KEY_F16,
+	[108] = KEY_F17,
+	[109] = KEY_F18,
+	[110] = KEY_F19,
+	[111] = KEY_F20,
+	[112] = KEY_F21,
+	[113] = KEY_F22,
+	[114] = KEY_F23,
+	[115] = KEY_F24,
+	[116] = KEY_OPEN,
+	[117] = KEY_HELP,
+	[118] = KEY_PROPS,
+	[119] = KEY_FRONT,
+	[120] = KEY_STOP,
+	[121] = KEY_AGAIN,
+	[122] = KEY_UNDO,
+	[123] = KEY_CUT,
+	[124] = KEY_COPY,
+	[125] = KEY_PASTE,
+	[126] = KEY_FIND,
+	[127] = KEY_MUTE,
+	[128] = KEY_VOLUMEUP,
+	[129] = KEY_VOLUMEDOWN,
+	[133] = KEY_KPCOMMA,
+	[135] = KEY_RO,
+	[136] = KEY_KATAKANAHIRAGANA,
+	[137] = KEY_YEN,
+	[138] = KEY_HENKAN,
+	[139] = KEY_MUHENKAN,
+	[140] = KEY_KPJPCOMMA,
+	[144] = KEY_HANGEUL,
+	[145] = KEY_HANJA,
+	[146] = KEY_KATAKANA,
+	[147] = KEY_HIRAGANA,
+	[148] = KEY_ZENKAKUHANKAKU,
+	[182] = KEY_KPLEFTPAREN,
+	[183] = KEY_KPRIGHTPAREN,
+	[224] = KEY_LEFTCTRL,
+	[225] = KEY_LEFTSHIFT,
+	[226] = KEY_LEFTALT,
+	[227] = KEY_LEFTMETA,
+	[228] = KEY_RIGHTCTRL,
+	[229] = KEY_RIGHTSHIFT,
+	[230] = KEY_RIGHTALT,
+	[231] = KEY_RIGHTMETA,
 
-	[0x06] = KEY_LEFTCTRL,
-	[0x11] = KEY_PAGEDOWN,
-	[0x07] = KEY_PAGEUP,
-	[0x12] = KEY_ESC,
-	[0xEE] = KEY_POWER,
-
-	[0x1A] = KEY_LEFTALT,
-	[0x1B] = KEY_LEFTSHIFT,
-	[0x1D] = KEY_RIGHTALT,
-	[0x1C] = KEY_RIGHTSHIFT,
-
-	['A'] = KEY_A,
-	['B'] = KEY_B,
-	['C'] = KEY_C,
-	['D'] = KEY_D,
-	['E'] = KEY_E,
-	['F'] = KEY_F,
-	['G'] = KEY_G,
-	['H'] = KEY_H,
-	['I'] = KEY_I,
-	['J'] = KEY_J,
-	['K'] = KEY_K,
-	['L'] = KEY_L,
-	['M'] = KEY_M,
-	['N'] = KEY_N,
-	['O'] = KEY_O,
-	['P'] = KEY_P,
-	['Q'] = KEY_Q,
-	['R'] = KEY_R,
-	['S'] = KEY_S,
-	['T'] = KEY_T,
-	['U'] = KEY_U,
-	['V'] = KEY_V,
-	['W'] = KEY_W,
-	['X'] = KEY_X,
-	['Y'] = KEY_Y,
-	['Z'] = KEY_Z,
-
-	[' '] = KEY_SPACE,
-	['~'] = KEY_0,
-	['$'] = KEY_GRAVE,
-
-	['\b'] = KEY_BACKSPACE,
-	['\n'] = KEY_ENTER,
 	/*
 	 * As per the kernel, a keyboard needs to indicate, in advance, which key values it can report.
 	 * In order to that, it should have unique scancodes pointing those scancode-keycode pairs.
