@@ -30,17 +30,10 @@
 #define BBQX0KBD_PRODUCT_ID		0x0001
 #define BBQX0KBD_VERSION_ID		0x0001
 
-#define LEFT_CTRL_BIT			BIT(0)
-#define LEFT_SHIFT_BIT			BIT(1)
-#define LEFT_ALT_BIT			BIT(2)
-#define LEFT_GUI_BIT			BIT(3)
-#define RIGHT_CTRL_BIT			BIT(4)
-#define RIGHT_SHIFT_BIT			BIT(5)
-#define RIGHT_ALT_BIT			BIT(6)
-#define RIGHT_GUI_BIT			BIT(7)
-
-#define CAPS_LOCK_BIT			BIT(0)
-#define NUMS_LOCK_BIT			BIT(1)
+#define CTRL_BIT  BIT(0)
+#define SHIFT_BIT BIT(1)
+#define ALT_BIT   BIT(2)
+#define META_BIT  BIT(3)
 
 #if (BBQX0KBD_INT != BBQX0KBD_USE_INT)
 #error "Only supporting interrupts mode right now"
@@ -80,8 +73,9 @@ struct bbqX0kbd_data
 	int8_t touch_rel_y;
 
 	// Modifier mode flags and lock status
-	uint8_t modifier_keys_status;
-	uint8_t lock_status;
+	uint8_t held_modifier_keys;
+	uint8_t pending_sticky_modifier_keys;
+	uint8_t sticky_modifier_keys;
 
 	// Keyboard brightness
 	uint8_t brightness;
@@ -127,122 +121,24 @@ static int kbd_read_i2c_2u8(struct i2c_client* i2c_client, uint8_t reg_addr, uin
 		on_err; \
 	}
 
-static uint8_t bbqX0kbd_modkeys_to_bits(unsigned short mod_keycode)
+// Sticky keys will keep meta mode on after being pressed
+static unsigned short bbqX0kbd_get_meta_keycode(uint8_t *sticky, unsigned short keycode)
 {
-	uint8_t returnValue;
-
-	switch (mod_keycode) {
-	case (KEY_LEFTCTRL):
-		returnValue = LEFT_CTRL_BIT;
-		break;
-	case KEY_RIGHTCTRL:
-		returnValue = RIGHT_CTRL_BIT;
-		break;
-	case KEY_LEFTSHIFT:
-		returnValue = LEFT_SHIFT_BIT;
-		break;
-	case KEY_RIGHTSHIFT:
-		returnValue = RIGHT_SHIFT_BIT;
-		break;
-	case KEY_LEFTALT:
-		returnValue = LEFT_ALT_BIT;
-		break;
-	case KEY_RIGHTALT:
-		returnValue = RIGHT_ALT_BIT;
-		break;
-	//TODO: Add for GUI Key if needed.
-	}
-	return returnValue;
-}
-
-static unsigned short bbqX0kbd_get_num_lock_keycode(unsigned short keycode)
-{
-	unsigned short returnValue;
-
 	switch (keycode) {
-	case KEY_W:
-		returnValue = KEY_1;
-		break;
-	case KEY_E:
-		returnValue = KEY_2;
-		break;
-	case KEY_R:
-		returnValue = KEY_3;
-		break;
-	case KEY_S:
-		returnValue = KEY_4;
-		break;
-	case KEY_D:
-		returnValue = KEY_5;
-		break;
-	case KEY_F:
-		returnValue = KEY_6;
-		break;
-	case KEY_Z:
-		returnValue = KEY_7;
-		break;
-	case KEY_X:
-		returnValue = KEY_8;
-		break;
-	case KEY_C:
-		returnValue = KEY_9;
-		break;
-	case KEY_GRAVE:
-		returnValue = KEY_0;
-		break;
-	default:
-		returnValue = keycode;
-		break;
-	}
-	return returnValue;
-}
+	case KEY_E: *sticky = 1; return KEY_UP;
+	case KEY_S: *sticky = 1; return KEY_DOWN;
+	case KEY_W: *sticky = 1; return KEY_LEFT;
+	case KEY_D: *sticky = 1; return KEY_RIGHT;
+	case KEY_R: *sticky = 1; return KEY_HOME;
+	case KEY_F: *sticky = 1; return KEY_END;
+	case KEY_T: *sticky = 0; return KEY_TAB;
+	case KEY_O: *sticky = 1; return KEY_PAGEUP;
+	case KEY_P: *sticky = 1; return KEY_PAGEDOWN;
+	case KEY_X: *sticky = 0; return KEY_LEFTCTRL;
 
-static unsigned short bbqX0kbd_get_altgr_keycode(unsigned short keycode)
-{
-	unsigned short returnValue;
-
-	switch (keycode) {
-	case KEY_E:
-		returnValue = KEY_PAGEDOWN;
-		break;
-	case KEY_R:
-		returnValue = KEY_PAGEUP;
-		break;
-	case KEY_Y:
-		returnValue = KEY_UP;
-		break;
-	case KEY_G:
-		returnValue = KEY_LEFT;
-		break;
-	case KEY_H:
-		returnValue = KEY_HOME;
-		break;
-	case KEY_J:
-		returnValue = KEY_RIGHT;
-		break;
-	case KEY_B:
-		returnValue = KEY_DOWN;
-		break;
-	case KEY_M:
-		returnValue = KEY_MENU;
-		break;
-	case KEY_K:
-		returnValue = KEY_VOLUMEUP;
-		break;
-	case KEY_L:
-		returnValue = KEY_VOLUMEDOWN;
-		break;
-	case KEY_GRAVE:
-		returnValue = KEY_MUTE;
-		break;
-	case KEY_BACKSPACE:
-		returnValue = KEY_DELETE;
-		break;
-	default:
-		returnValue = keycode;
-		break;
+	// Default: turn meta mode off
+	default: *sticky = 0; return keycode;
 	}
-	return returnValue;
 }
 
 static void bbqX0kbd_set_brightness(struct bbqX0kbd_data* kbd_ctx,
@@ -314,6 +210,78 @@ static void bbqX0kbd_read_fifo(struct bbqX0kbd_data* kbd_ctx)
 	}
 }
 
+// Sticky modifier keys follow BB Q10 convention
+// Holding modifier while typing alpha keys will apply to all alpha keys
+// until released.
+// One press and release will enter sticky mode, apply modifier key to
+// the next alpha key only. If the same modifier key is pressed and
+// released again in sticky mode, it will be canceled.
+static void transition_sticky_modifier_key(struct bbqX0kbd_data* kbd_ctx,
+	uint8_t key_state, uint8_t key_bit, int keycode)
+{
+	if (key_state == KEY_PRESSED_STATE) {
+
+		// Set "held" state and "pending sticky" state. Clear "sticky".
+		kbd_ctx->held_modifier_keys |= key_bit;
+
+		// If pressed again while sticky, clear sticky
+		if (kbd_ctx->sticky_modifier_keys & key_bit) {
+			kbd_ctx->sticky_modifier_keys &= ~key_bit;
+
+		// Otherwise, set pending sticky to be applied on release
+		} else {
+			kbd_ctx->pending_sticky_modifier_keys |= key_bit;
+		}
+
+		// Report modifier to input system as held
+		input_report_key(kbd_ctx->input_dev, keycode, TRUE);
+
+	// Released
+	} else {
+
+		// Unset "held" state
+		kbd_ctx->held_modifier_keys &= ~key_bit;
+
+		// If any alpha key was typed during hold,
+		// `apply_sticky_modifiers` will clear "pending sticky" state.
+		// If still in "pending sticky", set "sticky" state.
+		if (kbd_ctx->pending_sticky_modifier_keys & key_bit) {
+			kbd_ctx->sticky_modifier_keys |= key_bit;
+			kbd_ctx->pending_sticky_modifier_keys &= ~key_bit;
+		}
+
+		// Report modifier to input system as released
+		input_report_key(kbd_ctx->input_dev, keycode, FALSE);
+	}
+}
+
+// This function is called before sending the alpha key to apply
+// any pending sticky modifiers
+static void apply_sticky_modifier_keys(struct bbqX0kbd_data* kbd_ctx,
+	uint8_t key_state, uint8_t key_bit, int keycode)
+{
+	if (kbd_ctx->held_modifier_keys & key_bit) {
+		kbd_ctx->pending_sticky_modifier_keys &= ~key_bit;
+	} else if (kbd_ctx->sticky_modifier_keys & key_bit) {
+
+		// Modifier applied by reporting key down to input system
+		input_report_key(kbd_ctx->input_dev, keycode, TRUE);
+	}
+}
+
+// This function is called after sending the alpha key to reset
+// any sticky modifiers
+static void reset_sticky_modifier_keys(struct bbqX0kbd_data* kbd_ctx,
+	uint8_t key_state, uint8_t key_bit, int keycode)
+{
+	if (kbd_ctx->sticky_modifier_keys & key_bit) {
+		kbd_ctx->sticky_modifier_keys &= ~key_bit;
+
+		// Modifier reset by reporting key up to input system
+		input_report_key(kbd_ctx->input_dev, keycode, FALSE);
+	}
+}
+
 static void report_state_and_scancode(struct bbqX0kbd_data* kbd_ctx,
 	uint8_t key_state, uint8_t key_scancode)
 {
@@ -343,55 +311,14 @@ static void report_state_and_scancode(struct bbqX0kbd_data* kbd_ctx,
 				__func__, key_scancode);
 		break;
 
-	case KEY_RIGHTSHIFT:
-		if ((kbd_ctx->modifier_keys_status & LEFT_ALT_BIT)
-		 && (key_state == KEY_PRESSED_STATE)) {
-
-			// Set numlock (AltGr) mode
-			kbd_ctx->lock_status ^= NUMS_LOCK_BIT;
-		}
-		fallthrough;
-
 	case KEY_LEFTSHIFT:
-	case KEY_RIGHTALT:
-	case KEY_LEFTALT:
-	case KEY_LEFTCTRL:
-	case KEY_RIGHTCTRL:
-		if (key_state == KEY_PRESSED_STATE) {
-			kbd_ctx->modifier_keys_status |= bbqX0kbd_modkeys_to_bits(keycode);
-		} else {
-			kbd_ctx->modifier_keys_status &= ~bbqX0kbd_modkeys_to_bits(keycode);
-		}
-		fallthrough;
+		transition_sticky_modifier_key(kbd_ctx, key_state, SHIFT_BIT, KEY_LEFTSHIFT);
+		break;
 
 	default:
-		if (kbd_ctx->lock_status & NUMS_LOCK_BIT) {
-			keycode = bbqX0kbd_get_num_lock_keycode(keycode);
-
-		} else if (kbd_ctx->modifier_keys_status & RIGHT_ALT_BIT) {
-			keycode = bbqX0kbd_get_altgr_keycode(keycode);
-
-		#if (BBQ20KBD_TRACKPAD_USE == BBQ20KBD_TRACKPAD_AS_MOUSE)
-		} else if ((kbd_ctx->modifier_keys_status & LEFT_ALT_BIT)
-				&& (keycode == KEY_ENTER)) {
-			keycode = BTN_RIGHT;
-		#endif
-		}
-
-		if ((kbd_ctx->modifier_keys_status & RIGHT_ALT_BIT)
-			&& (key_state == KEY_PRESSED_STATE)) {
-
-			// Set brightness if proper key is pressed
-			// If so, don't report the key to input
-			bbqX0kbd_set_brightness(kbd_ctx, keycode, &should_report_key);
-		}
-
-		// If input was not consumed by brightness setting, report key to input
-		if (should_report_key == 2) {
-			input_report_key(kbd_ctx->input_dev, keycode,
-				key_state == KEY_PRESSED_STATE);
-			break;
-		}
+		apply_sticky_modifier_keys(kbd_ctx, key_state, SHIFT_BIT, KEY_LEFTSHIFT);
+		input_report_key(kbd_ctx->input_dev, keycode, key_state == KEY_PRESSED_STATE);
+		reset_sticky_modifier_keys(kbd_ctx, key_state, SHIFT_BIT, KEY_LEFTSHIFT);
 	}
 }
 
@@ -540,8 +467,9 @@ static int bbqX0kbd_probe(struct i2c_client* i2c_client, struct i2c_device_id co
 	// Initialize keyboard context
 	kbd_ctx->i2c_client = i2c_client;
 	memcpy(kbd_ctx->keycode_map, keycodes, sizeof(kbd_ctx->keycode_map));
-	kbd_ctx->modifier_keys_status = 0x00; // Equal to idle state of all keys
-	kbd_ctx->lock_status = 0x00;
+	kbd_ctx->held_modifier_keys = 0x00;
+	kbd_ctx->pending_sticky_modifier_keys = 0x00;
+	kbd_ctx->sticky_modifier_keys = 0x00;
 	kbd_ctx->brightness = 0xFF;
 	kbd_ctx->last_brightness = 0xFF;
 
