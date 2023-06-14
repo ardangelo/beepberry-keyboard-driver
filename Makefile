@@ -5,7 +5,10 @@ include Kbuild
 CFLAGS_$(MODULE_NAME)_main.o := -DDEBUG
 
 modules:
-	make -C $(KDIR) M=$(PWD) modules
+	make -C $(KDIR) M=$(shell pwd) modules
+
+modules_install:
+	make -C $(KDIR) M=$(shell pwd) modules_install
 
 dtbo:
 	dtc -I dts -O dtb -o i2c-bbqX0kbd.dtbo source/dts_src/i2c-bbqX0kbd.dts

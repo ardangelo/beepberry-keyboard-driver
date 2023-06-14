@@ -1,5 +1,49 @@
-keycode 113 = tilde
+# Reference
+# https://github.com/SFML/SFML/blob/master/src/SFML/Window/Unix/KeySymToUnicodeMapping.cpp
 
+# Symbol key
+altgr keycode 16 = asciitilde
+altgr keycode 17 = grave
+altgr keycode 18 = braceleft
+altgr keycode 19 = braceright
+altgr keycode 20 = bracketleft
+altgr keycode 21 = bracketright
+altgr keycode 22 = less
+altgr keycode 23 = greater
+altgr keycode 24 = asciicircum
+altgr keycode 25 = percent
+altgr keycode 30 = equal
+altgr keycode 31 = division
+altgr keycode 32 = plusminus
+altgr keycode 33 = periodcentered
+altgr keycode 34 = backslash
+altgr keycode 35 = bar
+altgr keycode 36 = ampersand
+altgr keycode 37 = quotedbl # leftdoublequotemark
+altgr keycode 38 = quotedbl # rightdoublequotemark
+altgr keycode 44 = yen
+altgr keycode 45 = euro
+altgr keycode 46 = sterling
+altgr keycode 47 = questiondown
+altgr keycode 48 = exclamdown
+altgr keycode 49 = guillemotleft
+altgr keycode 50 = guillemotright
+altgr keycode 113 = dollar
+
+# Berry key sends Control + this code
+# Use it for Tmux prefix
+control keycode 162 = Control_a
+
+# Alt + arrow keys move between words instead of terminals
+alt keycode 105 = F105
+alt keycode 106 = F106
+string F105 = "\033[1;5D"
+string F106 = "\033[1;5C"
+
+# Dollar sign
+keycode 113 = asciitilde
+
+# Default physical Alt key
 keycode 135 = numbersign
 keycode 136 = one
 keycode 137 = two

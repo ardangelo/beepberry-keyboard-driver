@@ -13,6 +13,40 @@ The drivers are named so (with an 'X'), so as to support future products by the 
 2. [Raspberry Pi Zero 2 W](https://www.raspberrypi.com/products/raspberry-pi-zero-2-w/)
 3. [Raspberry Pi 3 Model B](https://www.raspberrypi.com/products/raspberry-pi-3-model-b/). 
 
+## Modifications
+
+- Supports sticky modifier keys. Must be used with the corresponding RP2040 firmware file that sends modifier state over I2C (alongside the original scancode and key state)
+- Call is mapped to Control
+- Berry key is mapped to Tmux prefix (customize the prefix in the keymap file)
+- Touchpad click enters Meta mode (more on this later). Double click enters touchpad scroll mode
+- Back is mapped to Escape
+- Holding End Call runs the power-off routine on the RP2040, but does not send an actual key to Linux
+- Physical Alt is mapped to symbols via the keymap file
+- Symbol is mapped to AltGr (Right Alt), mapped to more symbols via the keymap file
+
+### Meta mode
+
+Meta mode is a modal layer that assists in rapidly moving the cursor and scrolling with single keypresses.
+To enter meta mode, click the touchpad button once. Then, the following keymap is applied, staying in
+meta mode until dismissed:
+
+- E: up, S: down, W: left, D: right. Why not WASD? This way, you can place your thumb in the middle of
+  all four of these keys, and more fluidly move the cursor without mistyping.
+- R: Home, F: End, O: PageUp, P: PageDown
+- Q: Alt+Left (back one word), A: Alt+Right (forward one word)
+- T: Tab (dismisses meta mode)
+- X: Apply Control to next key (dismisses meta mode)
+- C: Apply Alt to next key (dismisses meta mode)
+- Touchpad click (while in meta mode): Enable touchpad scroll mode (up and down arrrow keys). Meta mode
+  keys will continue to work as normal. Exiting meta mode will also exit touchpad scroll mode. Subsequent
+  clicks of the touchpad will type Enter.
+
+Typing any other key while in meta mode will exit meta mode and send the key as if it was typed normally.
+
+### The rest of the Readme
+
+I have not yet updated any other part of the Readme file.
+
 ## Features
 The original [source code](https://github.com/arturo182/bbq10pmod_module) by [arturo182](https://github.com/arturo182), is a good starting point from where this driver builds on. This driver offers the following features:
 
