@@ -30,11 +30,6 @@
 #define BBQX0KBD_PRODUCT_ID		0x0001
 #define BBQX0KBD_VERSION_ID		0x0001
 
-#define CTRL_BIT  BIT(0)
-#define SHIFT_BIT BIT(1)
-#define ALT_BIT   BIT(2)
-#define META_BIT  BIT(3)
-
 #if (BBQX0KBD_INT != BBQX0KBD_USE_INT)
 #error "Only supporting interrupts mode right now"
 #endif
@@ -76,6 +71,12 @@ struct bbqX0kbd_data
 	uint8_t held_modifier_keys;
 	uint8_t pending_sticky_modifier_keys;
 	uint8_t sticky_modifier_keys;
+	uint8_t apply_phys_alt; // "Real" modifiers like
+	// Shift and Control are handled by simulating input key
+	// events. Since phys. alt is hardcoded, the state is here.
+	uint8_t current_phys_alt_keycode; // Store the last keycode
+	// sent in the phys. alt map to simulate a key up event
+	// when the key is released after phys. alt is released
 
 	// Keyboard brightness
 	uint8_t brightness;
@@ -84,6 +85,133 @@ struct bbqX0kbd_data
 	struct i2c_client *i2c_client;
 	struct input_dev *input_dev;
 	};
+
+struct sticky_modifier
+{
+	// Should move these out of the struct
+	uint8_t bit;
+
+	// When sticky modifier system has determined that
+	// modifier should be applied, run this callback
+	// and report the returned keycode result to the input system
+	void(*set_callback)(struct bbqX0kbd_data *kbd_ctx, int keycode);
+	void(*unset_callback)(struct bbqX0kbd_data *kbd_ctx, int keycode);
+	uint8_t(*map_callback)(struct bbqX0kbd_data *kbd_ctx, uint8_t keycode);
+};
+
+static struct sticky_modifier sticky_ctrl;
+static struct sticky_modifier sticky_shift;
+static struct sticky_modifier sticky_alt;
+static struct sticky_modifier sticky_phys_alt;
+
+static void report_key_down(struct bbqX0kbd_data *kbd_ctx, int keycode)
+{
+	input_report_key(kbd_ctx->input_dev, keycode, TRUE);
+}
+
+static void report_key_up(struct bbqX0kbd_data *kbd_ctx, int keycode)
+{
+	input_report_key(kbd_ctx->input_dev, keycode, FALSE);
+}
+
+static void enable_phys_alt(struct bbqX0kbd_data *kbd_ctx, int keycode)
+{
+	kbd_ctx->apply_phys_alt = 1;
+}
+
+static void disable_phys_alt(struct bbqX0kbd_data *kbd_ctx, int keycode)
+{
+	// Send key up event if there is a current phys. alt key
+	// being held
+	if (kbd_ctx->current_phys_alt_keycode) {
+		input_report_key(kbd_ctx->input_dev,
+			kbd_ctx->current_phys_alt_keycode, FALSE);
+		kbd_ctx->current_phys_alt_keycode = 0;
+	}
+
+	kbd_ctx->apply_phys_alt = 0;
+}
+
+// Map physical keys to their Alt+key combination as
+// printed on the keyboard, properly mapped in the keymap file
+static uint8_t map_alt_keycode(struct bbqX0kbd_data *kbd_ctx,
+	uint8_t keycode)
+{
+	if (!kbd_ctx->apply_phys_alt) {
+		return 0;
+	}
+
+	switch (keycode) {
+	case KEY_Q: return 135;
+	case KEY_W: return 136;
+	case KEY_E: return 137;
+	case KEY_R: return 138;
+	case KEY_T: return 139;
+	case KEY_Y: return 140;
+	case KEY_U: return 141;
+	case KEY_I: return 142;
+	case KEY_O: return 143;
+	case KEY_P: return 144;
+	case KEY_A: return 145;
+	case KEY_S: return 146;
+	case KEY_D: return 147;
+	case KEY_F: return 148;
+	case KEY_G: return 149;
+	case KEY_H: return 150;
+	case KEY_J: return 151;
+	case KEY_K: return 152;
+	case KEY_L: return 153;
+	case KEY_BACKSPACE: return KEY_DELETE;
+	case KEY_Z: return 154;
+	case KEY_X: return 155;
+	case KEY_C: return 156;
+	case KEY_V: return 157;
+	case KEY_B: return 158;
+	case KEY_N: return 159;
+	case KEY_M: return 160;
+	case KEY_MUTE: return 161;
+	case KEY_ENTER: return KEY_TAB;
+	}
+
+	return 0;
+}
+
+static uint8_t map_and_store_alt_keycode(struct bbqX0kbd_data *kbd_ctx,
+	uint8_t keycode)
+{
+	uint8_t mapped_keycode;
+
+	mapped_keycode = map_alt_keycode(kbd_ctx, keycode);
+	if (mapped_keycode) {
+		kbd_ctx->current_phys_alt_keycode = mapped_keycode;
+		return mapped_keycode;
+	}
+
+	return keycode;
+}
+
+static void init_sticky_modifiers(void)
+{
+	sticky_ctrl.bit = BIT(0);
+	sticky_ctrl.set_callback = report_key_down;
+	sticky_ctrl.unset_callback = report_key_up;
+	sticky_ctrl.map_callback = NULL;
+
+	sticky_shift.bit = BIT(1);
+	sticky_shift.set_callback = report_key_down;
+	sticky_shift.unset_callback = report_key_up;
+	sticky_shift.map_callback = NULL;
+
+	sticky_alt.bit = BIT(2);
+	sticky_alt.set_callback = report_key_down;
+	sticky_alt.unset_callback = report_key_up;
+	sticky_alt.map_callback = NULL;
+
+	sticky_phys_alt.bit = BIT(3);
+	sticky_phys_alt.set_callback = enable_phys_alt;
+	sticky_phys_alt.unset_callback = disable_phys_alt;
+	sticky_phys_alt.map_callback = map_and_store_alt_keycode;
+}
 
 // Helper functions
 
@@ -120,26 +248,6 @@ static int kbd_read_i2c_2u8(struct i2c_client* i2c_client, uint8_t reg_addr, uin
 		dev_err(&client->dev, "%s: Could not write " #reg ". Error: %d\n", __func__, rc); \
 		on_err; \
 	}
-
-// Sticky keys will keep meta mode on after being pressed
-static unsigned short bbqX0kbd_get_meta_keycode(uint8_t *sticky, unsigned short keycode)
-{
-	switch (keycode) {
-	case KEY_E: *sticky = 1; return KEY_UP;
-	case KEY_S: *sticky = 1; return KEY_DOWN;
-	case KEY_W: *sticky = 1; return KEY_LEFT;
-	case KEY_D: *sticky = 1; return KEY_RIGHT;
-	case KEY_R: *sticky = 1; return KEY_HOME;
-	case KEY_F: *sticky = 1; return KEY_END;
-	case KEY_T: *sticky = 0; return KEY_TAB;
-	case KEY_O: *sticky = 1; return KEY_PAGEUP;
-	case KEY_P: *sticky = 1; return KEY_PAGEDOWN;
-	case KEY_X: *sticky = 0; return KEY_LEFTCTRL;
-
-	// Default: turn meta mode off
-	default: *sticky = 0; return keycode;
-	}
-}
 
 static void bbqX0kbd_set_brightness(struct bbqX0kbd_data* kbd_ctx,
 	unsigned short keycode, uint8_t* should_report_key)
@@ -216,69 +324,91 @@ static void bbqX0kbd_read_fifo(struct bbqX0kbd_data* kbd_ctx)
 // One press and release will enter sticky mode, apply modifier key to
 // the next alpha key only. If the same modifier key is pressed and
 // released again in sticky mode, it will be canceled.
-static void transition_sticky_modifier_key(struct bbqX0kbd_data* kbd_ctx,
-	uint8_t key_state, uint8_t key_bit, int keycode)
+static void transition_sticky_modifier(struct bbqX0kbd_data* kbd_ctx,
+	uint8_t key_state, struct sticky_modifier const* sticky_modifier, int keycode)
 {
+	dev_info(&kbd_ctx->i2c_client->dev,
+		"%s transitioning sticky for modifier %d\n", __func__, keycode);
+
 	if (key_state == KEY_PRESSED_STATE) {
 
 		// Set "held" state and "pending sticky" state. Clear "sticky".
-		kbd_ctx->held_modifier_keys |= key_bit;
+		kbd_ctx->held_modifier_keys |= sticky_modifier->bit;
 
 		// If pressed again while sticky, clear sticky
-		if (kbd_ctx->sticky_modifier_keys & key_bit) {
-			kbd_ctx->sticky_modifier_keys &= ~key_bit;
+		if (kbd_ctx->sticky_modifier_keys & sticky_modifier->bit) {
+			kbd_ctx->sticky_modifier_keys &= ~sticky_modifier->bit;
 
 		// Otherwise, set pending sticky to be applied on release
 		} else {
-			kbd_ctx->pending_sticky_modifier_keys |= key_bit;
+			kbd_ctx->pending_sticky_modifier_keys |= sticky_modifier->bit;
 		}
 
 		// Report modifier to input system as held
-		input_report_key(kbd_ctx->input_dev, keycode, TRUE);
+		if (sticky_modifier->set_callback) {
+			sticky_modifier->set_callback(kbd_ctx, keycode);
+		}
 
 	// Released
 	} else {
 
 		// Unset "held" state
-		kbd_ctx->held_modifier_keys &= ~key_bit;
+		kbd_ctx->held_modifier_keys &= ~sticky_modifier->bit;
 
 		// If any alpha key was typed during hold,
 		// `apply_sticky_modifiers` will clear "pending sticky" state.
 		// If still in "pending sticky", set "sticky" state.
-		if (kbd_ctx->pending_sticky_modifier_keys & key_bit) {
-			kbd_ctx->sticky_modifier_keys |= key_bit;
-			kbd_ctx->pending_sticky_modifier_keys &= ~key_bit;
+		if (kbd_ctx->pending_sticky_modifier_keys
+			& sticky_modifier->bit) {
+
+			kbd_ctx->sticky_modifier_keys |= sticky_modifier->bit;
+			kbd_ctx->pending_sticky_modifier_keys &= ~sticky_modifier->bit;
 		}
 
 		// Report modifier to input system as released
-		input_report_key(kbd_ctx->input_dev, keycode, FALSE);
+		if (sticky_modifier->unset_callback) {
+			sticky_modifier->unset_callback(kbd_ctx, keycode);
+		}
 	}
 }
 
-// This function is called before sending the alpha key to apply
+// Called before sending the key to apply
 // any pending sticky modifiers
-static void apply_sticky_modifier_keys(struct bbqX0kbd_data* kbd_ctx,
-	uint8_t key_state, uint8_t key_bit, int keycode)
+static void apply_sticky_modifier(struct bbqX0kbd_data* kbd_ctx,
+	struct sticky_modifier const* sticky_modifier, uint8_t keycode)
 {
-	if (kbd_ctx->held_modifier_keys & key_bit) {
-		kbd_ctx->pending_sticky_modifier_keys &= ~key_bit;
-	} else if (kbd_ctx->sticky_modifier_keys & key_bit) {
-
-		// Modifier applied by reporting key down to input system
-		input_report_key(kbd_ctx->input_dev, keycode, TRUE);
+	if (kbd_ctx->held_modifier_keys & sticky_modifier->bit) {
+		kbd_ctx->pending_sticky_modifier_keys
+			&= ~sticky_modifier->bit;
+	} else if (kbd_ctx->sticky_modifier_keys & sticky_modifier->bit) {
+		if (sticky_modifier->set_callback) {
+			sticky_modifier->set_callback(kbd_ctx, keycode);
+		}
 	}
 }
 
-// This function is called after sending the alpha key to reset
-// any sticky modifiers
-static void reset_sticky_modifier_keys(struct bbqX0kbd_data* kbd_ctx,
-	uint8_t key_state, uint8_t key_bit, int keycode)
+// Called after applying any pending sticky modifiers,
+// before sending key to perform any hard-coded mapping
+static uint8_t map_sticky_modifier(struct bbqX0kbd_data* kbd_ctx,
+	struct sticky_modifier const* sticky_modifier, uint8_t keycode)
 {
-	if (kbd_ctx->sticky_modifier_keys & key_bit) {
-		kbd_ctx->sticky_modifier_keys &= ~key_bit;
+	if (sticky_modifier->map_callback) {
+		return sticky_modifier->map_callback(kbd_ctx, keycode);
+	}
 
-		// Modifier reset by reporting key up to input system
-		input_report_key(kbd_ctx->input_dev, keycode, FALSE);
+	return keycode;
+}
+
+// Called after sending the alpha key to reset
+// any sticky modifiers
+static void reset_sticky_modifier(struct bbqX0kbd_data* kbd_ctx,
+	struct sticky_modifier const* sticky_modifier, uint8_t keycode)
+{
+	if (kbd_ctx->sticky_modifier_keys & sticky_modifier->bit) {
+		kbd_ctx->sticky_modifier_keys &= ~sticky_modifier->bit;
+		if (sticky_modifier->unset_callback) {
+			sticky_modifier->unset_callback(kbd_ctx, keycode);
+		}
 	}
 }
 
@@ -312,13 +442,52 @@ static void report_state_and_scancode(struct bbqX0kbd_data* kbd_ctx,
 		break;
 
 	case KEY_LEFTSHIFT:
-		transition_sticky_modifier_key(kbd_ctx, key_state, SHIFT_BIT, KEY_LEFTSHIFT);
+		transition_sticky_modifier(kbd_ctx, key_state, &sticky_shift, KEY_LEFTSHIFT);
+		break;
+
+	// Map call key to Control in keymap
+	case KEY_OPEN:
+		transition_sticky_modifier(kbd_ctx, key_state, &sticky_ctrl, KEY_LEFTCTRL);
+		break;
+
+	// Map left alt (physical alt key) to hardcoded alt-map
+	case KEY_LEFTALT:
+		transition_sticky_modifier(kbd_ctx, key_state, &sticky_phys_alt, 0);
+		break;
+
+	// Pressing touchpad will enable Meta mode
+	case KEY_COMPOSE:
 		break;
 
 	default:
-		apply_sticky_modifier_keys(kbd_ctx, key_state, SHIFT_BIT, KEY_LEFTSHIFT);
-		input_report_key(kbd_ctx->input_dev, keycode, key_state == KEY_PRESSED_STATE);
-		reset_sticky_modifier_keys(kbd_ctx, key_state, SHIFT_BIT, KEY_LEFTSHIFT);
+
+		// Apply pending sticky modifiers
+		apply_sticky_modifier(kbd_ctx, &sticky_shift, KEY_LEFTSHIFT);
+		apply_sticky_modifier(kbd_ctx, &sticky_ctrl, KEY_LEFTCTRL);
+		apply_sticky_modifier(kbd_ctx, &sticky_alt, KEY_LEFTALT);
+		apply_sticky_modifier(kbd_ctx, &sticky_phys_alt, 0);
+
+		// Run sticky modifier key remaps
+		// This does depend on order. But we only have one actual
+		// remapper at this point (phys. alt)
+		keycode = map_sticky_modifier(kbd_ctx, &sticky_shift, keycode);
+		keycode = map_sticky_modifier(kbd_ctx, &sticky_ctrl, keycode);
+		keycode = map_sticky_modifier(kbd_ctx, &sticky_alt, keycode);
+		keycode = map_sticky_modifier(kbd_ctx, &sticky_phys_alt, keycode);
+
+		// Report final key to input system
+		dev_info(&kbd_ctx->i2c_client->dev,
+			"%s physalt %d remap to %d\n",
+			__func__, kbd_ctx->apply_phys_alt, keycode);
+		if (keycode) {
+			input_report_key(kbd_ctx->input_dev, keycode, key_state == KEY_PRESSED_STATE);
+		}
+
+		// Reset sticky modifiers
+		reset_sticky_modifier(kbd_ctx, &sticky_shift, KEY_LEFTSHIFT);
+		reset_sticky_modifier(kbd_ctx, &sticky_ctrl, KEY_LEFTCTRL);
+		reset_sticky_modifier(kbd_ctx, &sticky_alt, KEY_LEFTALT);
+		reset_sticky_modifier(kbd_ctx, &sticky_phys_alt, 0);
 	}
 }
 
@@ -357,7 +526,7 @@ static void bbqX0kbd_work_fnc(struct work_struct *work_struct_ptr)
 			// Clear touch interrupt flag
 			kbd_ctx->touch_event_flag = 0;
 		#endif
-
+		#if 0
 		#if (BBQ20KBD_TRACKPAD_USE == BBQ20KBD_TRACKPAD_AS_KEYS)
 
 			// Negative X: left arrow key
@@ -384,6 +553,7 @@ static void bbqX0kbd_work_fnc(struct work_struct *work_struct_ptr)
 
 			// Clear touch interrupt flag
 			kbd_ctx->touch_event_flag = 0;
+		#endif
 		#endif
 	}
 
@@ -472,6 +642,11 @@ static int bbqX0kbd_probe(struct i2c_client* i2c_client, struct i2c_device_id co
 	kbd_ctx->sticky_modifier_keys = 0x00;
 	kbd_ctx->brightness = 0xFF;
 	kbd_ctx->last_brightness = 0xFF;
+
+	// Intialize sticky modifiers
+	init_sticky_modifiers();
+	kbd_ctx->apply_phys_alt = 0;
+	kbd_ctx->current_phys_alt_keycode = 0;
 
 	// Get firmware version
 	READ_I2C_U8_OR_DEV_ERR(rc, i2c_client, REG_VER, &kbd_ctx->version_number,
