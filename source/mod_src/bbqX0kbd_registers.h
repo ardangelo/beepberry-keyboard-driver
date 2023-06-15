@@ -101,6 +101,12 @@
 
 #define REG_TOX							0x15
 #define REG_TOY							0x16
+
+#define REG_ADC 						0x17
+#define REG_LED 						0x20
+#define REG_LED_R 						0x21
+#define REG_LED_G 						0x22
+#define REG_LED_B 						0x23
 #endif
 
 

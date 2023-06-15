@@ -18,6 +18,14 @@
 #include <linux/types.h>
 #include <linux/workqueue.h>
 #include <linux/ktime.h>
+#include <linux/kdev_t.h>
+#include <linux/fs.h>
+#include <linux/cdev.h>
+#include <linux/device.h>
+#include <linux/uaccess.h>
+#include <linux/sysfs.h> 
+#include <linux/kobject.h> 
+#include <linux/err.h>
 
 #include "config.h"
 #include "bbqX0kbd_i2cHelper.h"
@@ -50,6 +58,11 @@
 #define dev_info_ld(...)
 #endif
 
+// Kernel module parameters
+static char* touchpad_setting = "meta"; // Use meta mode by default
+
+// Internal structs
+
 // From keyboard firmware source
 struct fifo_item
 {
@@ -67,6 +80,7 @@ struct kbd_ctx
 {
 	struct work_struct work_struct;
 	uint8_t version_number;
+	uint8_t touchpad_always_keys; // Set by parameter `touchpad_setting`
 
 	// Map from input HID scancodes to Linux keycodes
 	unsigned short keycode_map[NUM_KEYCODES];
@@ -82,7 +96,7 @@ struct kbd_ctx
 
 	// Meta mode enabled flag
 	uint8_t meta_mode;
-	uint8_t touch_keys_mode;
+	uint8_t meta_touch_keys_mode;
 
 	// Apply modifiers to the next alpha keypress
 	uint8_t apply_control;
@@ -96,7 +110,26 @@ struct kbd_ctx
 	struct input_dev *input_dev;
 };
 
+// Global keyboard context and sysfs data
+static struct kbd_ctx *g_ctx = NULL;
+static struct kobject *g_beepberry_kobj = NULL;
+
 // Helper functions
+
+// Update touchpad setting in global context, if available
+static bool set_touchpad_setting(struct kbd_ctx *ctx, char const* val)
+{
+	if (strncmp(val, "keys", 4) == 0) {
+		if (ctx) { ctx->touchpad_always_keys = 1; }
+		return TRUE;
+
+	} else if (strncmp(val, "meta", 4) == 0) {
+		if (ctx) { ctx->touchpad_always_keys = 0; }
+		return TRUE;
+	}
+
+	return FALSE;
+}
 
 // Read a single uint8_t value from I2C register
 static int kbd_read_i2c_u8(struct i2c_client* i2c_client, uint8_t reg_addr, uint8_t* dst)
@@ -132,43 +165,189 @@ static int kbd_read_i2c_2u8(struct i2c_client* i2c_client, uint8_t reg_addr, uin
 		on_err; \
 	}
 
-static void bbqX0kbd_set_brightness(struct kbd_ctx* ctx,
-	unsigned short keycode, uint8_t* should_report_key)
+// Sysfs implementations
+
+// Read battery level over I2C
+static int read_raw_battery_level(void)
 {
-	if (keycode == KEY_Z) {
-		*should_report_key = 0;
+	int rc;
+	uint8_t battery_level[2];
 
-		// Increase by delta, max at 0xff brightness
-		ctx->brightness
-			= (ctx->brightness > (0xff - BBQ10_BRIGHTNESS_DELTA))
-				? 0xff
-				: ctx->brightness + BBQ10_BRIGHTNESS_DELTA;
+	// Make sure I2C client was initialized
+	if ((g_ctx == NULL) || (g_ctx->i2c_client == NULL)) {
+		return -EINVAL;
+	}
 
-	} else if (keycode == KEY_X) {
-		*should_report_key = 0;
+	// Read battery level
+	if ((rc = kbd_read_i2c_2u8(g_ctx->i2c_client, REG_ADC, battery_level)) < 0) {
+		return rc;
+	}
 
-		// Decrease by delta, min at 0x0 brightness
-		ctx->brightness
-			= (ctx->brightness < BBQ10_BRIGHTNESS_DELTA)
-				? 0x0
-				: ctx->brightness - BBQ10_BRIGHTNESS_DELTA;
+	// Calculate raw battery level
+	return (battery_level[1] << 8) | battery_level[0];
+}
 
-	} else if (keycode == KEY_0) {
-		*should_report_key = 0;
+// Raw battery level
+static ssize_t battery_raw_show(struct kobject *kobj, struct kobj_attribute *attr,
+	char *buf)
+{
+	int total_level;
 
-		// Toggle off, save last brightness in context
+	// Read raw level
+	if ((total_level = read_raw_battery_level()) < 0) {
+		return total_level;
+	}
+
+	// Format into buffer
+	return sprintf(buf, "%d", total_level);
+}
+struct kobj_attribute battery_raw_attr
+	= __ATTR(battery_raw, 0440, battery_raw_show, NULL);
+
+// Battery volts level
+static ssize_t battery_volts_show(struct kobject *kobj, struct kobj_attribute *attr,
+	char *buf)
+{
+	int volts_fp;
+
+	// Read raw level
+	if ((volts_fp = read_raw_battery_level()) < 0) {
+		return volts_fp;
+	}
+
+	// Calculate voltage in fixed point
+	volts_fp *= 330 * 2;
+	volts_fp /= 4095;
+
+	// Format into buffer
+	return sprintf(buf, "%d.%d", volts_fp / 100, volts_fp % 100);
+}
+struct kobj_attribute battery_volts_attr
+	= __ATTR(battery_volts, 0440, battery_volts_show, NULL);
+
+
+// Red, green, and blue LED settings, max of 0xff
+static uint8_t parse_u8(char const* buf)
+{
+	int rc, result;
+
+	// Parse string value
+	if ((rc = kstrtoint(buf, 10, &result)) || (result < 0) || (result > 0xff)) {
+		return -EINVAL;
+	}
+	return (uint8_t)result;
+}
+
+static int parse_and_write_i2c_u8(char const* buf, size_t count, uint8_t reg)
+{
+	uint8_t parsed;
+	
+	// Parse string entry
+	if ((parsed = parse_u8(buf)) < 0) {
+		return -EINVAL;
+	}
+
+	// Write value to LED register if available
+	if (g_ctx && g_ctx->i2c_client) {
+		kbd_write_i2c_u8(g_ctx->i2c_client, reg, parsed);
+	}
+
+	return count;
+}
+
+// LED on or off
+static ssize_t led_store(struct kobject *kobj, struct kobj_attribute *attr,
+	char const *buf, size_t count)
+{
+	return parse_and_write_i2c_u8(buf, count, REG_LED);
+}
+struct kobj_attribute led_attr = __ATTR(led, 0220, NULL, led_store);
+
+// LED red value
+static ssize_t led_red_store(struct kobject *kobj, struct kobj_attribute *attr,
+	char const *buf, size_t count)
+{
+	return parse_and_write_i2c_u8(buf, count, REG_LED_R);
+}
+struct kobj_attribute led_red_attr = __ATTR(led_red, 0220, NULL, led_red_store);
+
+// LED green value
+static ssize_t led_green_store(struct kobject *kobj, struct kobj_attribute *attr,
+	char const *buf, size_t count)
+{
+	return parse_and_write_i2c_u8(buf, count, REG_LED_G);
+}
+struct kobj_attribute led_green_attr = __ATTR(led_green, 0220, NULL, led_green_store);
+
+// LED blue value
+static ssize_t __used led_blue_store(struct kobject *kobj, struct kobj_attribute *attr,
+	char const *buf, size_t count)
+{
+	return parse_and_write_i2c_u8(buf, count, REG_LED_B);
+}
+struct kobj_attribute led_blue_attr = __ATTR(led_blue, 0220, NULL, led_blue_store);
+
+// Keyboard backlight value
+static ssize_t __used keyboard_backlight_store(struct kobject *kobj,
+	struct kobj_attribute *attr, char const *buf, size_t count)
+{
+	return parse_and_write_i2c_u8(buf, count, REG_BKL);
+}
+struct kobj_attribute keyboard_backlight_attr
+	= __ATTR(keyboard_backlight, 0220, NULL, keyboard_backlight_store);
+
+// Sysfs attributes (entries)
+static struct attribute *beepberry_attrs[] = {
+    &battery_raw_attr.attr,
+	&battery_volts_attr.attr,
+	&led_attr.attr,
+	&led_red_attr.attr,
+	&led_green_attr.attr,
+	&led_blue_attr.attr,
+	&keyboard_backlight_attr.attr,	
+    NULL,
+};
+static struct attribute_group beepberry_attr_group = {
+    .attrs = beepberry_attrs
+};
+
+// Device settings helpers
+
+static void bbqX0kbd_decrease_brightness(struct kbd_ctx* ctx)
+{
+	// Decrease by delta, min at 0x0 brightness
+	ctx->brightness = (ctx->brightness < BBQ10_BRIGHTNESS_DELTA)
+		? 0x0
+		: ctx->brightness - BBQ10_BRIGHTNESS_DELTA;
+
+	// Set backlight using I2C
+	(void)kbd_write_i2c_u8(ctx->i2c_client, REG_BKL, ctx->brightness);
+}
+
+static void bbqX0kbd_increase_brightness(struct kbd_ctx* ctx)
+{
+	// Increase by delta, max at 0xff brightness
+	ctx->brightness = (ctx->brightness > (0xff - BBQ10_BRIGHTNESS_DELTA))
+		? 0xff
+		: ctx->brightness + BBQ10_BRIGHTNESS_DELTA;
+
+	// Set backlight using I2C
+	(void)kbd_write_i2c_u8(ctx->i2c_client, REG_BKL, ctx->brightness);
+}
+
+static void bbqX0kbd_toggle_brightness(struct kbd_ctx* ctx)
+{
+	// Toggle, save last brightness in context
+	if (ctx->last_brightness) {
+		ctx->brightness = ctx->last_brightness;
+		ctx->last_brightness = 0;
+	} else {
 		ctx->last_brightness = ctx->brightness;
 		ctx->brightness = 0;
-
-	// Not a brightness control key, don't consume it
-	} else {
-		*should_report_key = 2;
 	}
 
-	// If it was a brightness control key, set backlight
-	if (*should_report_key == 0) {
-		(void)kbd_write_i2c_u8(ctx->i2c_client, REG_BKL, ctx->brightness);
-	}
+	// Set backlight using I2C
+	(void)kbd_write_i2c_u8(ctx->i2c_client, REG_BKL, ctx->brightness);
 }
 
 // Transfer from I2C FIFO to internal context FIFO
@@ -223,6 +402,28 @@ static void send_one_key_with_alt(struct kbd_ctx* ctx, uint8_t keycode)
 	input_report_key(ctx->input_dev, KEY_LEFTALT, FALSE);
 }
 
+static void enable_meta_touch_keys_mode(struct kbd_ctx* ctx)
+{
+	int rc;
+
+	// Enable touch interrupts on I2C
+	WRITE_I2C_U8_OR_DEV_ERR(rc, ctx->i2c_client, REG_CF2, REG_CF2_TOUCH_INT,
+		return);
+
+	ctx->meta_touch_keys_mode = 1;
+}
+
+static void disable_meta_touch_keys_mode(struct kbd_ctx* ctx)
+{
+	int rc;
+
+	// Disable touch interrupts on I2C
+	WRITE_I2C_U8_OR_DEV_ERR(rc, ctx->i2c_client, REG_CF2, 0,
+		return);
+
+	ctx->meta_touch_keys_mode = 0;
+}
+
 // Called before checking "repeatable" meta mode keys,
 // These keys map to an internal driver function rather than another key
 // They will not be sent to the input system
@@ -230,11 +431,14 @@ static void send_one_key_with_alt(struct kbd_ctx* ctx, uint8_t keycode)
 static bool is_single_function_meta_mode_key(struct kbd_ctx* ctx, uint8_t keycode)
 {
 	switch (keycode) {
-	case KEY_Q: return TRUE;
-	case KEY_A: return TRUE;
-	case KEY_X: return TRUE;
-	case KEY_C: return TRUE;
-	case KEY_COMPOSE: return TRUE;
+	case KEY_Q: return TRUE; // Word left
+	case KEY_A: return TRUE; // Word right
+	case KEY_X: return TRUE; // Control
+	case KEY_C: return TRUE; // Alt
+	case KEY_N: return TRUE; // Decrease brightness
+	case KEY_M: return TRUE; // Increase brightness
+	case KEY_MUTE: return TRUE; // Toggle brightness
+	case KEY_COMPOSE: return TRUE; // Turn on touch keys mode
 	}
 
 	return FALSE;
@@ -250,26 +454,33 @@ static void run_single_function_meta_mode_key(struct kbd_ctx* ctx,
 	case KEY_X:
 		ctx->apply_control = 1;
 		ctx->meta_mode = 0;
-		ctx->touch_keys_mode = 0;
+		disable_meta_touch_keys_mode(ctx);
 		return;
 
 	case KEY_C:
 		ctx->apply_alt = 1;
 		ctx->meta_mode = 0;
-		ctx->touch_keys_mode = 0;
+		disable_meta_touch_keys_mode(ctx);
 		return;
 
 	case KEY_COMPOSE:
 		// First click of Compose enters meta mode (already here)
 		// Second click of Compose enters touch keys mode.
 		// Subsequent clicks are Enter.
-		if (ctx->touch_keys_mode) {
+		if (ctx->meta_touch_keys_mode) {
 			input_report_key(ctx->input_dev, KEY_ENTER, 1);
 			input_report_key(ctx->input_dev, KEY_ENTER, 0);
 
 		} else {
-			ctx->touch_keys_mode = 1;
+			enable_meta_touch_keys_mode(ctx);
 		}
+		return;
+
+	case KEY_N: bbqX0kbd_decrease_brightness(ctx); return;
+	case KEY_M: bbqX0kbd_increase_brightness(ctx); return;
+	case KEY_MUTE:
+		bbqX0kbd_toggle_brightness(ctx);
+		ctx->meta_mode = 0;
 		return;
 	}
 }
@@ -293,18 +504,18 @@ static uint8_t map_repeatable_meta_mode_key(struct kbd_ctx* ctx, uint8_t keycode
 
 	case KEY_T:
 		ctx->meta_mode = 0;
-		ctx->touch_keys_mode = 0;
+		disable_meta_touch_keys_mode(ctx);
 		return KEY_TAB;
 
 	case KEY_ESC:
 		ctx->meta_mode = 0;
-		ctx->touch_keys_mode = 0;
+		disable_meta_touch_keys_mode(ctx);
 		return 0;
 	}
 
 	// No meta mode match, disable and return original key
 	ctx->meta_mode = 0;
-	ctx->touch_keys_mode = 0;
+	disable_meta_touch_keys_mode(ctx);
 	return keycode;
 }
 
@@ -338,7 +549,12 @@ static void report_key_input_event(struct kbd_ctx* ctx,
 			__func__, ev->scancode);
 		return;
 
-	// Compose key enters meta mode
+	// Compose key sends enter if touchpad always sends arrow keys
+	} else if (ctx->touchpad_always_keys && (keycode == KEY_COMPOSE)) {
+		keycode = KEY_ENTER;
+		// Continue to normal input handling
+
+	// Compose key enters meta mode if touchpad not in arrow key mode
 	} else if (!ctx->meta_mode && (keycode == KEY_COMPOSE)) {
 		if (ev->state == KEY_RELEASED_STATE) {
 			ctx->meta_mode = 1;
@@ -354,7 +570,7 @@ static void report_key_input_event(struct kbd_ctx* ctx,
 	}
 
 	// Handle keys without modifiers in meta mode
-	if (ctx->meta_mode) {
+	if (!ctx->touchpad_always_keys && ctx->meta_mode) {
 
 		// Handle function dispatch meta mode keys
 		if (is_single_function_meta_mode_key(ctx, keycode)) {
@@ -442,9 +658,10 @@ static void bbqX0kbd_work_fnc(struct work_struct *work_struct_ptr)
 		#endif
 
 		#if (BBQ20KBD_TRACKPAD_USE == BBQ20KBD_TRACKPAD_AS_KEYS)
-		if (ctx->touch_keys_mode) {
 
-			#if 0
+		// Touchpad-as-keys mode will always use the touchpad as arrow keys
+		if (ctx->touchpad_always_keys) {
+
 			// Negative X: left arrow key
 			if (ctx->touch_rel_x < -4) {
 				input_report_key(ctx->input_dev, KEY_LEFT, TRUE);
@@ -455,7 +672,20 @@ static void bbqX0kbd_work_fnc(struct work_struct *work_struct_ptr)
 				input_report_key(ctx->input_dev, KEY_RIGHT, TRUE);
 				input_report_key(ctx->input_dev, KEY_RIGHT, FALSE);
 			}
-			#endif
+
+			// Negative Y: up arrow key
+			if (ctx->touch_rel_y < -4) {
+				input_report_key(ctx->input_dev, KEY_UP, TRUE);
+				input_report_key(ctx->input_dev, KEY_UP, FALSE);
+
+			// Positive Y: down arrow key
+			} else if (ctx->touch_rel_y > 4) {
+				input_report_key(ctx->input_dev, KEY_DOWN, TRUE);
+				input_report_key(ctx->input_dev, KEY_DOWN, FALSE);
+			}
+
+		// Meta touch keys will only send up/down keys when enabled
+		} else if (ctx->meta_touch_keys_mode) {
 
 			// Negative Y: up arrow key
 			if (ctx->touch_rel_y < -4) {
@@ -551,15 +781,19 @@ static int bbqX0kbd_probe(struct i2c_client* i2c_client, struct i2c_device_id co
 		return -ENOMEM;
 	}
 
+	// Save pointer in global state to allow parameters to update settings
+	g_ctx = ctx;
+
 	// Initialize keyboard context
 	ctx->i2c_client = i2c_client;
 	memcpy(ctx->keycode_map, keycodes, sizeof(ctx->keycode_map));
 	ctx->meta_mode = 0;
-	ctx->touch_keys_mode = 0;
+	ctx->meta_touch_keys_mode = 0;
 	ctx->apply_control = 0;
 	ctx->apply_alt = 0;
 	ctx->brightness = 0xFF;
 	ctx->last_brightness = 0xFF;
+	set_touchpad_setting(ctx, touchpad_setting);
 
 	// Get firmware version
 	READ_I2C_U8_OR_DEV_ERR(rc, i2c_client, REG_VER, &ctx->version_number,
@@ -576,8 +810,9 @@ static int bbqX0kbd_probe(struct i2c_client* i2c_client, struct i2c_device_id co
 	dev_info_ld(&i2c_client->dev,
 		"%s Configuration Register Value: 0x%02X\n", __func__, reg_value);
 
-	// Write configuration 2
-	WRITE_I2C_U8_OR_DEV_ERR(rc, i2c_client, REG_CF2, REG_CFG2_DEFAULT_SETTING,
+	// Write configuration 2: touch disabled if not in keys mode
+	WRITE_I2C_U8_OR_DEV_ERR(rc, i2c_client, REG_CF2,
+		(ctx->touchpad_always_keys) ? REG_CF2_TOUCH_INT : 0,
 		return -ENODEV);
 
 	// Read back configuration 2 setting
@@ -643,6 +878,17 @@ static int bbqX0kbd_probe(struct i2c_client* i2c_client, struct i2c_device_id co
 		return rc;
 	}
 
+	// Create sysfs entry for beepberry
+	if ((g_beepberry_kobj = kobject_create_and_add("beepberry", firmware_kobj)) == NULL) {
+    	return -ENOMEM;
+	}
+
+	// Create sysfs attributes
+	if (sysfs_create_group(g_beepberry_kobj, &beepberry_attr_group)){
+		kobject_put(g_beepberry_kobj);
+		return -ENOMEM;
+	}
+
 	return 0;
 }
 
@@ -653,12 +899,25 @@ static void bbqX0kbd_shutdown(struct i2c_client* i2c_client)
 
 	dev_info_fe(&i2c_client->dev,
 		"%s Shutting Down Keyboard And Screen Backlight.\n", __func__);
+
+	// Remove sysfs entry
+	if (g_beepberry_kobj) {
+		kobject_put(g_beepberry_kobj);
+		g_beepberry_kobj = NULL;
+	}
 	
 	// Turn off backlight
 	WRITE_I2C_U8_OR_DEV_ERR(rc, i2c_client, REG_BKL, 0, return);
 
 	// Read back version
 	READ_I2C_U8_OR_DEV_ERR(rc, i2c_client, REG_VER, &reg_value, return);
+
+	// Reenable touch events
+	WRITE_I2C_U8_OR_DEV_ERR(rc, i2c_client, REG_CF2, REG_CFG2_DEFAULT_SETTING, return);
+
+	// Remove context from global state
+	// (It is freed by the device-specific memory mananger)
+	g_ctx = NULL;
 }
 
 static void bbqX0kbd_remove(struct i2c_client* i2c_client)
@@ -668,6 +927,30 @@ static void bbqX0kbd_remove(struct i2c_client* i2c_client)
 
 	bbqX0kbd_shutdown(i2c_client);
 }
+
+// Kernel module parameters
+
+// Use touchpad for meta mode, or use it as arrow keys
+static int touchpad_setting_param_set(const char *val, const struct kernel_param *kp)
+{
+	char *stripped_val;
+	char stripped_val_buf[5];
+
+	// Copy provided value to buffer and strip it of newlines
+	strncpy(stripped_val_buf, val, 5);
+	stripped_val_buf[4] = '\0';
+	stripped_val = strstrip(stripped_val_buf);
+
+	return (set_touchpad_setting(g_ctx, stripped_val))
+		? param_set_charp(stripped_val, kp)
+		: -EINVAL;
+}
+static const struct kernel_param_ops touchpad_setting_param_ops = {
+	.set = touchpad_setting_param_set,
+	.get = param_get_charp,
+};
+module_param_cb(touchpad, &touchpad_setting_param_ops, &touchpad_setting, 0664);
+MODULE_PARM_DESC(touchpad_setting, "Touchpad as arrow keys (\"keys\") or click for meta mode (\"meta\")");
 
 // Driver definitions
 
