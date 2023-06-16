@@ -35,7 +35,7 @@ static int read_raw_battery_level(void)
 }
 
 // Parse 0 to 255 from string
-static uint8_t parse_u8(char const* buf)
+static int parse_u8(char const* buf)
 {
 	int rc, result;
 
@@ -43,12 +43,12 @@ static uint8_t parse_u8(char const* buf)
 	if ((rc = kstrtoint(buf, 10, &result)) || (result < 0) || (result > 0xff)) {
 		return -EINVAL;
 	}
-	return (uint8_t)result;
+	return result;
 }
 
 static int parse_and_write_i2c_u8(char const* buf, size_t count, uint8_t reg)
 {
-	uint8_t parsed;
+	int parsed;
 	
 	// Parse string entry
 	if ((parsed = parse_u8(buf)) < 0) {
@@ -57,7 +57,7 @@ static int parse_and_write_i2c_u8(char const* buf, size_t count, uint8_t reg)
 
 	// Write value to LED register if available
 	if (g_ctx && g_ctx->i2c_client) {
-		kbd_write_i2c_u8(g_ctx->i2c_client, reg, parsed);
+		kbd_write_i2c_u8(g_ctx->i2c_client, reg, (uint8_t)parsed);
 	}
 
 	return count;
