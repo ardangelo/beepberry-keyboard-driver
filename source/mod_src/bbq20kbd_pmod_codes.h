@@ -7,11 +7,11 @@
 #ifndef BBQ20KBD_PMOD_CODES_H_
 #define BBQ20KBD_PMOD_CODES_H_
 
-#include <linux/input.h>
+#include <uapi/linux/input-event-codes.h>
 
-#define NUM_KEYCODES	256
+#define NUM_KEYCODES 256
 
-static unsigned short keycodes[NUM_KEYCODES] = {
+static const uint8_t keycodes[NUM_KEYCODES] = {
 
 	// Map USB HID scancodes to Linux keycode
 	[4] = KEY_A,

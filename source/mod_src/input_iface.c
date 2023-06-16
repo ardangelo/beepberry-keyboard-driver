@@ -360,9 +360,11 @@ int input_probe(struct i2c_client* i2c_client)
 	}
 
 	// Allocate and copy keycode array
-	g_ctx->keycode_map = devm_kzalloc(&i2c_client->dev, sizeof(keycodes),
+	g_ctx->keycode_map = devm_kmemdup(&i2c_client->dev, keycodes, NUM_KEYCODES,
 		GFP_KERNEL);
-	memcpy(g_ctx->keycode_map, keycodes, ARRAY_SIZE(keycodes));
+	if (!g_ctx->keycode_map) {
+		return -ENOMEM;
+	}
 
 	// Initialize keyboard context
 	g_ctx->i2c_client = i2c_client;

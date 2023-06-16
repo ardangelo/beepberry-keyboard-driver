@@ -32,7 +32,10 @@ altgr keycode 113 = dollar
 
 # Berry key sends Control + this code
 # Use it for Tmux prefix
-control keycode 162 = Control_a
+control keycode 162 = Control_b
+
+# Shift + backspace sends delete
+shift keycode 14 = Delete
 
 # Alt + arrow keys move between words instead of terminals
 alt keycode 105 = F105
@@ -40,8 +43,8 @@ alt keycode 106 = F106
 string F105 = "\033[1;5D"
 string F106 = "\033[1;5C"
 
-# Dollar sign
-keycode 113 = asciitilde
+# Dollar key
+keycode 113 = dollar
 
 # Default physical Alt key
 keycode 135 = numbersign
@@ -70,4 +73,4 @@ keycode 157 = question
 keycode 158 = exclam
 keycode 159 = comma
 keycode 160 = period
-keycode 161 = dollar
+keycode 161 = asciitilde # Alt + dollar key

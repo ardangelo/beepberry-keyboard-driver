@@ -44,7 +44,7 @@ struct kbd_ctx
 	uint8_t touchpad_always_keys; // Set by parameter `touchpad_setting`
 
 	// Map from input HID scancodes to Linux keycodes
-	unsigned short *keycode_map;
+	uint8_t *keycode_map;
 
 	// Key state FIFO queue
 	uint8_t fifo_count;
