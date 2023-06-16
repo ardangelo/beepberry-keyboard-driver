@@ -24,6 +24,24 @@ The drivers are named so (with an 'X'), so as to support future products by the 
 - Physical Alt is mapped to symbols via the keymap file
 - Symbol is mapped to AltGr (Right Alt), mapped to more symbols via the keymap file
 
+Adds the following sysfs entries under `/sys/firmware/beepberry`:
+
+- `led`: 0 to disable LED, 1 to enable. Write-only.
+- `led_red`, `led_green`, `led_blue`: set LED color intensity from 0 to 255. Write-only.
+- `keyboard_backlight`: set keyboard brightness from 0 to 255. Write-only.
+- `battery_raw`: raw numerical battery level as reported by firmware. Read-only.
+- `battery_volts`: battery voltage estimation. Read-only
+
+Module parameters:
+
+Write to `/sys/module/bbqX0kbd/parameters/<param>` to set, or unload and
+reload the module with `bbqX0kbd param=val`.
+
+- `touchpad`: one of `meta` or `keys`
+  - `meta`: default, will use the touchpad button to enable or disable meta mode.
+    See section below for how to use meta mode.
+  - `keys`: touchpad always on, swiping sends arrow keys, clicking sends Enter.
+
 ### Meta mode
 
 Meta mode is a modal layer that assists in rapidly moving the cursor and scrolling with single keypresses.
@@ -40,6 +58,7 @@ meta mode until dismissed:
 - Touchpad click (while in meta mode): Enable touchpad scroll mode (up and down arrrow keys). Meta mode
   keys will continue to work as normal. Exiting meta mode will also exit touchpad scroll mode. Subsequent
   clicks of the touchpad will type Enter.
+- Esc: (Back button): exit meta mode
 
 Typing any other key while in meta mode will exit meta mode and send the key as if it was typed normally.
 
