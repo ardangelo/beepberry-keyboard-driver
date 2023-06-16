@@ -9,6 +9,7 @@ KBUILD_OUTPUT = build
 
 obj-m := $(MODULE_NAME).o
 
-$(MODULE_NAME)-objs:= source/mod_src/$(MODULE_NAME)_main.o source/mod_src/$(MODULE_NAME)_i2cHelper.o
+$(MODULE_NAME)-objs:= source/mod_src/main.o source/mod_src/input_iface.o \
+	source/mod_src/params_iface.o source/mod_src/sysfs_iface.o
 ccflags-y := -I$(src)/src/mod_src/
 
