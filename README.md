@@ -15,7 +15,13 @@ The drivers are named so (with an 'X'), so as to support future products by the 
 
 ## Modifications
 
-- Supports sticky modifier keys. Must be used with the corresponding RP2040 firmware file that sends modifier state over I2C (alongside the original scancode and key state)
+Corresponding firmware PR: https://github.com/sqfmi/i2c_puppet/pull/1
+
+## Modifications
+
+- Supports sticky modifier keys. Must be used with the corresponding RP2040 firmware
+  - Holding a modifier key (shift, physical alt, Symbol) while typing an alpha keys will apply the modifier to all alpha keys until the modifier is released.
+  - One press and release of the modifier will enter sticky mode, applying the modifier to the next alpha key only. If the same modifier key is pressed and released again in sticky mode, it will be canceled.
 - Call is mapped to Control
 - Berry key is mapped to Tmux prefix (customize the prefix in the keymap file)
 - Touchpad click enters Meta mode (more on this later). Double click enters touchpad scroll mode
@@ -27,7 +33,8 @@ The drivers are named so (with an 'X'), so as to support future products by the 
 Adds the following sysfs entries under `/sys/firmware/beepberry`:
 
 - `led`: 0 to disable LED, 1 to enable. Write-only.
-- `led_red`, `led_green`, `led_blue`: set LED color intensity from 0 to 255. Write-only.
+- `led_red`, `led_green`, `led_blue`: set LED color intensity from 0 to 255. Write-
+only.
 - `keyboard_backlight`: set keyboard brightness from 0 to 255. Write-only.
 - `battery_raw`: raw numerical battery level as reported by firmware. Read-only.
 - `battery_volts`: battery voltage estimation. Read-only
@@ -44,20 +51,18 @@ reload the module with `bbqX0kbd param=val`.
 
 ### Meta mode
 
-Meta mode is a modal layer that assists in rapidly moving the cursor and scrolling with single keypresses.
+Meta mode is a modal layer that assists in rapidly moving the cursor and scrolling
+with single keypresses.
 To enter meta mode, click the touchpad button once. Then, the following keymap is applied, staying in
 meta mode until dismissed:
 
-- E: up, S: down, W: left, D: right. Why not WASD? This way, you can place your thumb in the middle of
-  all four of these keys, and more fluidly move the cursor without mistyping.
+- E: up, S: down, W: left, D: right. Why not WASD? This way, you can place your thumb in the middle of  all four of these keys, and more fluidly move the cursor without mistyping.
 - R: Home, F: End, O: PageUp, P: PageDown
 - Q: Alt+Left (back one word), A: Alt+Right (forward one word)
 - T: Tab (dismisses meta mode)
 - X: Apply Control to next key (dismisses meta mode)
 - C: Apply Alt to next key (dismisses meta mode)
-- Touchpad click (while in meta mode): Enable touchpad scroll mode (up and down arrrow keys). Meta mode
-  keys will continue to work as normal. Exiting meta mode will also exit touchpad scroll mode. Subsequent
-  clicks of the touchpad will type Enter.
+- Touchpad click (while in meta mode): Enable touchpad scroll mode (up and down arrrow keys). Meta mode  keys will continue to work as normal. Exiting meta mode will also exit touchpad scroll mode. Subsequent  clicks of the touchpad will type Enter.
 - Esc: (Back button): exit meta mode
 
 Typing any other key while in meta mode will exit meta mode and send the key as if it was typed normally.
