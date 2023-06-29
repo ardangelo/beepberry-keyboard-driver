@@ -52,6 +52,7 @@ struct kbd_ctx
 	uint8_t held_modifier_keys;
 	uint8_t pending_sticky_modifier_keys;
 	uint8_t sticky_modifier_keys;
+	uint8_t locked_modifier_keys;
 
 	uint8_t apply_phys_alt; // "Real" modifiers like
 	// Shift and Control are handled by simulating input key

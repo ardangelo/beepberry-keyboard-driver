@@ -60,10 +60,6 @@
 
 #define REG_RST                         0x08
 #define REG_FIF                         0x09
-#define KEY_IDLE_STATE					0
-#define KEY_PRESSED_STATE               1
-#define KEY_PRESSED_AND_HELD_STATE      2
-#define KEY_RELEASED_STATE              3
 
 #define REG_BK2                         0x0A
 
