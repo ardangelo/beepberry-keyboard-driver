@@ -218,6 +218,7 @@ static const uint8_t keycodes[NUM_KEYCODES] = {
 	[179] = 179,
 	[180] = 180,
 	[181] = 181,
+	[232] = 232,
 };
 
 #endif

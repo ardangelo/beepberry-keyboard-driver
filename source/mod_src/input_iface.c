@@ -33,10 +33,15 @@
 
 #include "bbq20kbd_pmod_codes.h"
 
-#define SHARP_MONO_INV_PATH "/sys/module/sharp/parameters/mono_invert"
+#define SHARP_DEVICE_PATH "/dev/sharp"
 
 // Global keyboard context and sysfs data
 struct kbd_ctx *g_ctx = NULL;
+
+// Display ioctl
+#define SHARP_IOC_MAGIC 0xd5
+#define SHARP_IOCTQ_SET_INVERT _IOW(SHARP_IOC_MAGIC, 1, uint32_t)
+#define SHARP_IOCTQ_SET_INDICATOR _IOW(SHARP_IOC_MAGIC, 2, uint32_t)
 
 // Sticky modifier structs
 static struct sticky_modifier sticky_ctrl;
@@ -44,6 +49,40 @@ static struct sticky_modifier sticky_shift;
 static struct sticky_modifier sticky_phys_alt;
 static struct sticky_modifier sticky_alt;
 static struct sticky_modifier sticky_altgr;
+
+// Display helpers
+
+static int ioctl_call_int(char const* path, unsigned int cmd, int value)
+{
+	struct file *filp;
+
+	// Open file
+    if (IS_ERR((filp = filp_open(path, O_WRONLY, 0)))) {
+		// Silently return if display driver was not loaded
+		return 0;
+	}
+
+	filp->f_op->unlocked_ioctl(filp, cmd, value);
+
+	// Close file
+	filp_close(filp, NULL);
+
+	return 0;
+}
+
+// Invert display colors by writing to display driver parameter
+static void invert_display(struct kbd_ctx* ctx)
+{
+	// Update saved invert value
+	ctx->mono_invert = (ctx->mono_invert)
+		? 0
+		: 1;
+
+	// Write to parameter
+	(void)ioctl_call_int(SHARP_DEVICE_PATH, SHARP_IOCTQ_SET_INVERT, (ctx->mono_invert)
+			? 1
+			: 0);
+}
 
 // Sticky modifier helpers
 
@@ -120,6 +159,10 @@ static void transition_sticky_modifier(struct kbd_ctx* ctx,
 		// Report modifier to input system as pressed
 		sticky_modifier->set_callback(ctx, sticky_modifier);
 
+		// Set display indicator
+		ioctl_call_int(SHARP_DEVICE_PATH, SHARP_IOCTQ_SET_INDICATOR,
+			(sticky_modifier->indicator_idx << 8) | sticky_modifier->indicator_char);
+
 	// Released
 	} else if (state == KEY_STATE_RELEASED) {
 
@@ -136,6 +179,11 @@ static void transition_sticky_modifier(struct kbd_ctx* ctx,
 
 				ctx->sticky_modifier_keys |= sticky_modifier->bit;
 				ctx->pending_sticky_modifier_keys &= ~sticky_modifier->bit;
+
+			} else {
+				// Clear display indicator
+				ioctl_call_int(SHARP_DEVICE_PATH, SHARP_IOCTQ_SET_INDICATOR,
+					(sticky_modifier->indicator_idx << 8) | '\0');
 			}
 
 			// Report modifier to input system as released
@@ -178,6 +226,10 @@ static void reset_sticky_modifier(struct kbd_ctx* ctx,
 		ctx->sticky_modifier_keys &= ~sticky_modifier->bit;
 
 		sticky_modifier->unset_callback(ctx, sticky_modifier);
+
+		// Clear display indicator
+		ioctl_call_int(SHARP_DEVICE_PATH, SHARP_IOCTQ_SET_INDICATOR,
+			(sticky_modifier->indicator_idx << 8) | '\0');
 	}
 }
 
@@ -220,43 +272,6 @@ static void kbd_toggle_brightness(struct kbd_ctx* ctx)
 	(void)kbd_write_i2c_u8(ctx->i2c_client, REG_BKL, ctx->brightness);
 }
 
-// Display helpers
-
-static int write_file(char const* path, char const* str)
-{
-	struct file *filp;
-	loff_t pos = 0;
-
-	// Open file
-    if (IS_ERR((filp = filp_open(path, O_WRONLY, 0)))) {
-		// Silently return if display driver was not loaded
-		return 0;
-	}
-
-	// Write to file
-	(void)__kernel_write(filp, str, strlen(str), &pos);
-
-	// Close file
-	filp_close(filp, NULL);
-
-	return 0;
-}
-
-// Invert display colors by writing to display driver parameter
-static void invert_display(struct kbd_ctx* ctx)
-{
-	// Update saved invert value
-	ctx->mono_invert = (ctx->mono_invert)
-		? 0
-		: 1;
-
-	// Write to parameter
-	(void)write_file(SHARP_MONO_INV_PATH,
-		(ctx->mono_invert)
-			? "1"
-			: "0");
-}
-
 // I2C FIFO helpers
 
 // Transfer from I2C FIFO to internal context FIFO
@@ -296,6 +311,31 @@ static void kbd_read_fifo(struct kbd_ctx* ctx)
 
 // Meta mode helpers
 
+static void enable_meta_mode(struct kbd_ctx* ctx)
+{
+	ctx->meta_mode = 1;
+
+	// Set display indicator
+    (void)ioctl_call_int(SHARP_DEVICE_PATH, SHARP_IOCTQ_SET_INDICATOR,
+		(5 << 8) | (int)'m');
+}
+
+static void disable_meta_mode(struct kbd_ctx* ctx)
+{
+	ctx->meta_mode = 0;
+
+	// Clear display indicator
+    (void)ioctl_call_int(SHARP_DEVICE_PATH, SHARP_IOCTQ_SET_INDICATOR,
+		(5 << 8) | (int)'\0');
+
+	// Disable touch interrupts on I2C
+	if (kbd_write_i2c_u8(ctx->i2c_client, REG_CF2, 0)) {
+		return;
+	}
+
+	ctx->meta_touch_keys_mode = 0;
+}
+
 static void enable_meta_touch_keys_mode(struct kbd_ctx* ctx)
 {
 	// Enable touch interrupts on I2C
@@ -304,16 +344,6 @@ static void enable_meta_touch_keys_mode(struct kbd_ctx* ctx)
 	}
 
 	ctx->meta_touch_keys_mode = 1;
-}
-
-static void disable_meta_touch_keys_mode(struct kbd_ctx* ctx)
-{
-	// Disable touch interrupts on I2C
-	if (kbd_write_i2c_u8(ctx->i2c_client, REG_CF2, 0)) {
-		return;
-	}
-
-	ctx->meta_touch_keys_mode = 0;
 }
 
 // Called before checking "repeatable" meta mode keys,
@@ -342,21 +372,18 @@ static void run_single_function_meta_mode_key(struct kbd_ctx* ctx,
 	case KEY_X:
 		transition_sticky_modifier(ctx, &sticky_ctrl, KEY_STATE_PRESSED);
 		transition_sticky_modifier(ctx, &sticky_ctrl, KEY_STATE_RELEASED);
-		ctx->meta_mode = 0;
-		disable_meta_touch_keys_mode(ctx);
+		disable_meta_mode(ctx);
 		return;
 
 	case KEY_C:
 		transition_sticky_modifier(ctx, &sticky_alt, KEY_STATE_PRESSED);
 		transition_sticky_modifier(ctx, &sticky_alt, KEY_STATE_RELEASED);
-		ctx->meta_mode = 0;
-		disable_meta_touch_keys_mode(ctx);
+		disable_meta_mode(ctx);
 		return;
 
 	case KEY_0:
 		invert_display(ctx);
-		ctx->meta_mode = 0;
-		disable_meta_touch_keys_mode(ctx);
+		disable_meta_mode(ctx);
 		return;
 
 	case KEY_COMPOSE:
@@ -376,7 +403,7 @@ static void run_single_function_meta_mode_key(struct kbd_ctx* ctx,
 	case KEY_M: kbd_increase_brightness(ctx); return;
 	case KEY_MUTE:
 		kbd_toggle_brightness(ctx);
-		ctx->meta_mode = 0;
+		disable_meta_mode(ctx);
 		return;
 	}
 }
@@ -398,20 +425,20 @@ static uint8_t map_repeatable_meta_mode_key(struct kbd_ctx* ctx, uint8_t keycode
 	case KEY_O: return KEY_PAGEUP;
 	case KEY_P: return KEY_PAGEDOWN;
 
+	case KEY_Q: return 172;
+	case KEY_A: return 173;
+
 	case KEY_T:
-		ctx->meta_mode = 0;
-		disable_meta_touch_keys_mode(ctx);
+		disable_meta_mode(ctx);
 		return KEY_TAB;
 
 	case KEY_ESC:
-		ctx->meta_mode = 0;
-		disable_meta_touch_keys_mode(ctx);
+		disable_meta_mode(ctx);
 		return 0;
 	}
 
 	// No meta mode match, disable and return original key
-	ctx->meta_mode = 0;
-	disable_meta_touch_keys_mode(ctx);
+	disable_meta_mode(ctx);
 	return keycode;
 }
 
@@ -455,7 +482,7 @@ static void report_key_input_event(struct kbd_ctx* ctx,
 	// Compose key enters meta mode if touchpad not in arrow key mode
 	} else if (!ctx->meta_mode && (keycode == KEY_COMPOSE)) {
 		if (ev->state == KEY_STATE_RELEASED) {
-			ctx->meta_mode = 1;
+			enable_meta_mode(ctx);
 		}
 		return;
 
@@ -574,30 +601,40 @@ int input_probe(struct i2c_client* i2c_client)
 	sticky_ctrl.set_callback = press_sticky_modifier;
 	sticky_ctrl.unset_callback = release_sticky_modifier;
 	sticky_ctrl.map_callback = NULL;
+	sticky_ctrl.indicator_idx = 2;
+	sticky_ctrl.indicator_char = 'c';
 
 	sticky_shift.bit = (1 << 1);
 	sticky_shift.keycode = KEY_LEFTSHIFT;
 	sticky_shift.set_callback = press_sticky_modifier;
 	sticky_shift.unset_callback = release_sticky_modifier;
 	sticky_shift.map_callback = NULL;
+	sticky_shift.indicator_idx = 0;
+	sticky_shift.indicator_char = 's';
 
 	sticky_phys_alt.bit = (1 << 2);
 	sticky_phys_alt.keycode = KEY_RIGHTCTRL;
 	sticky_phys_alt.set_callback = enable_phys_alt;
 	sticky_phys_alt.unset_callback = disable_phys_alt;
 	sticky_phys_alt.map_callback = map_phys_alt_keycode;
+	sticky_phys_alt.indicator_idx = 1;
+	sticky_phys_alt.indicator_char = 'p';
 
 	sticky_alt.bit = (1 << 3);
 	sticky_alt.keycode = KEY_LEFTALT;
 	sticky_alt.set_callback = press_sticky_modifier;
 	sticky_alt.unset_callback = release_sticky_modifier;
 	sticky_alt.map_callback = NULL;
+	sticky_alt.indicator_idx = 3;
+	sticky_alt.indicator_char = 'a';
 
 	sticky_altgr.bit = (1 << 4);
 	sticky_altgr.keycode = KEY_RIGHTALT;
 	sticky_altgr.set_callback = press_sticky_modifier;
 	sticky_altgr.unset_callback = release_sticky_modifier;
 	sticky_altgr.map_callback = NULL;
+	sticky_altgr.indicator_idx = 4;
+	sticky_altgr.indicator_char = 'g';
 
 	// Get firmware version
 	if (kbd_read_i2c_u8(i2c_client, REG_VER, &g_ctx->version_number)) {

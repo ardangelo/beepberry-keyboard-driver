@@ -37,19 +37,21 @@ altgr keycode 113 = dollar
 # Use it for Tmux prefix
 CtrlL keycode 171 = Control_b
 
-# Shift + backspace sends delete
-shift keycode 14 = Delete
-
-# Alt + arrow keys move between words instead of terminals
-alt keycode 105 = F105
-alt keycode 106 = F106
-string F105 = "\033[1;5D"
-string F106 = "\033[1;5C"
+# Meta Q / A move between words
+keycode 172 = F172
+keycode 173 = F173
+string F172 = "\033[1;5D"
+string F173 = "\033[1;5C"
 
 # Dollar key
 keycode 113 = dollar
 
-# Default physical Alt key
+# Alt + backspace
+keycode 133 = Delete
+# Alt + dollar key
+keycode 232 = asciitilde
+
+# Physical Alt key
 keycode 135 = numbersign
 keycode 136 = one
 keycode 137 = two
@@ -78,4 +80,3 @@ keycode 166 = question
 keycode 167 = exclam
 keycode 168 = comma
 keycode 169 = period
-keycode 170 = asciitilde # Alt + dollar key

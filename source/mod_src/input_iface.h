@@ -90,6 +90,10 @@ struct sticky_modifier
 	// Keycode to send to the input system when applied
 	uint8_t keycode;
 
+	// Display indicator index and code
+	uint8_t indicator_idx;
+	char indicator_char;
+
 	// When sticky modifier system has determined that
 	// modifier should be applied, run this callback
 	// and report the returned keycode result to the input system

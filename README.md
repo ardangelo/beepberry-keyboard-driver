@@ -24,6 +24,12 @@ The drivers are named so (with an 'X'), so as to support future products by the 
 - Physical Alt is mapped to symbols via the keymap file
 - Symbol is mapped to AltGr (Right Alt), mapped to more symbols via the keymap file
 
+Integrates with [Sharp DRM driver](https://github.com/ardangelo/sharp-drm-driver)
+
+- Draws visual mode indicators over display contents
+- Indicators for Shift, Phys. Alt, Control, Alt, Symbol, Meta mode
+- Meta mode key 0 toggles display color inversion
+
 Adds the following sysfs entries under `/sys/firmware/beepberry`:
 
 - `led`: 0 to disable LED, 1 to enable. Write-only.
@@ -55,6 +61,10 @@ meta mode until dismissed:
 - T: Tab (dismisses meta mode)
 - X: Apply Control to next key (dismisses meta mode)
 - C: Apply Alt to next key (dismisses meta mode)
+- 0: Toggle Sharp display inversion
+- N: Decrease keyboard brightness
+- M: Increase keyboard brightness
+- $: Toggle keyboard backlight
 - Touchpad click (while in meta mode): Enable touchpad scroll mode (up and down arrrow keys). Meta mode
   keys will continue to work as normal. Exiting meta mode will also exit touchpad scroll mode. Subsequent
   clicks of the touchpad will type Enter.
