@@ -29,10 +29,7 @@ struct fifo_item
 {
 	uint8_t scancode;
 
-	uint8_t _ : 1;
-	uint8_t shift_modifier : 1;
-	uint8_t ctrl_modifier : 1;
-	uint8_t altgr_modifier : 1;
+	uint8_t _ : 4;
 	enum rp2040_key_state state : 4;
 };
 
@@ -50,6 +47,19 @@ struct kbd_ctx
 	uint8_t fifo_count;
 	struct fifo_item fifo_data[BBQX0KBD_FIFO_SIZE];
 
+	// Bitfield for active sticky modifiers
+	uint8_t active_modifiers;
+	uint8_t held_modifier_keys;
+	uint8_t pending_sticky_modifier_keys;
+	uint8_t sticky_modifier_keys;
+
+	uint8_t apply_phys_alt; // "Real" modifiers like
+	// Shift and Control are handled by simulating input key
+	// events. Since phys. alt is hardcoded, the state is here.
+	uint8_t current_phys_alt_keycode; // Store the last keycode
+	// sent in the phys. alt map to simulate a key up event
+	// when the key is released after phys. alt is released
+
 	// Touch and mouse flags
 	uint8_t touch_event_flag;
 	int8_t touch_rel_x;
@@ -59,16 +69,32 @@ struct kbd_ctx
 	uint8_t meta_mode;
 	uint8_t meta_touch_keys_mode;
 
-	// Apply modifiers to the next alpha keypress
-	uint8_t apply_control;
-	uint8_t apply_alt;
-
 	// Keyboard brightness
 	uint8_t brightness;
 	uint8_t last_brightness;
 
+	// Display flags
+	uint8_t mono_invert;
+
 	struct i2c_client *i2c_client;
 	struct input_dev *input_dev;
+};
+
+struct sticky_modifier
+{
+	// Internal tracking bitfield to determine sticky state
+	// All sticky modifiers need to have a unique bitfield
+	uint8_t bit;
+
+	// Keycode to send to the input system when applied
+	uint8_t keycode;
+
+	// When sticky modifier system has determined that
+	// modifier should be applied, run this callback
+	// and report the returned keycode result to the input system
+	void (*set_callback)(struct kbd_ctx* ctx, struct sticky_modifier const* sticky_modifier);
+	void (*unset_callback)(struct kbd_ctx* ctx, struct sticky_modifier const* sticky_modifier);
+	uint8_t(*map_callback)(struct kbd_ctx* ctx, uint8_t keycode);
 };
 
 // Shared global state for global interfaces such as sysfs
