@@ -103,6 +103,30 @@ static ssize_t battery_volts_show(struct kobject *kobj, struct kobj_attribute *a
 struct kobj_attribute battery_volts_attr
 	= __ATTR(battery_volts, 0440, battery_volts_show, NULL);
 
+// Battery percent approximate
+static ssize_t battery_percent_show(struct kobject *kobj, struct kobj_attribute *attr,
+	char *buf)
+{
+	int percent;
+
+	// Read raw level
+	if ((percent = read_raw_battery_level()) < 0) {
+		return percent;
+	}
+
+	// Calculate voltage in fixed point
+	percent *= 330 * 2;
+	percent /= 4095;
+
+	// Range from 3.2V min to 4.2V max
+	percent -= 320;
+
+	// Format into buffer
+	return sprintf(buf, "%d", percent);
+}
+struct kobj_attribute battery_percent_attr
+	= __ATTR(battery_percent, 0440, battery_percent_show, NULL);
+
 // LED on or off
 static ssize_t led_store(struct kobject *kobj, struct kobj_attribute *attr,
 	char const *buf, size_t count)
@@ -149,6 +173,7 @@ struct kobject *beepberry_kobj = NULL;
 static struct attribute *beepberry_attrs[] = {
     &battery_raw_attr.attr,
 	&battery_volts_attr.attr,
+	&battery_percent_attr.attr,
 	&led_attr.attr,
 	&led_red_attr.attr,
 	&led_green_attr.attr,
