@@ -29,6 +29,7 @@ Corresponding firmware PR: https://github.com/sqfmi/i2c_puppet/pull/1
 - Holding End Call runs the power-off routine on the RP2040, but does not send an actual key to Linux
 - Physical Alt is mapped to symbols via the keymap file
 - Symbol is mapped to AltGr (Right Alt), mapped to more symbols via the keymap file
+- Physical Alt + Enter is mapped to Tab
 
 Integrates with [Sharp DRM driver](https://github.com/ardangelo/sharp-drm-driver)
 

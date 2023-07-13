@@ -353,6 +353,7 @@ static void enable_meta_touch_keys_mode(struct kbd_ctx* ctx)
 static bool is_single_function_meta_mode_key(struct kbd_ctx* ctx, uint8_t keycode)
 {
 	switch (keycode) {
+	case KEY_T: return TRUE; // Tab
 	case KEY_X: return TRUE; // Control
 	case KEY_C: return TRUE; // Alt
 	case KEY_N: return TRUE; // Decrease brightness
@@ -368,6 +369,12 @@ static void run_single_function_meta_mode_key(struct kbd_ctx* ctx,
 	uint8_t keycode)
 {
 	switch (keycode) {
+
+	case KEY_T:
+		input_report_key(ctx->input_dev, KEY_TAB, 1);
+		input_report_key(ctx->input_dev, KEY_TAB, 0);
+		disable_meta_mode(ctx);
+		return;
 
 	case KEY_X:
 		transition_sticky_modifier(ctx, &sticky_ctrl, KEY_STATE_PRESSED);
@@ -427,14 +434,6 @@ static uint8_t map_repeatable_meta_mode_key(struct kbd_ctx* ctx, uint8_t keycode
 
 	case KEY_Q: return 172;
 	case KEY_A: return 173;
-
-	case KEY_T:
-		disable_meta_mode(ctx);
-		return KEY_TAB;
-
-	case KEY_ESC:
-		disable_meta_mode(ctx);
-		return 0;
 	}
 
 	// No meta mode match, disable and return original key
@@ -499,6 +498,14 @@ static void report_key_input_event(struct kbd_ctx* ctx,
 
 	// Handle keys without modifiers in meta mode
 	if (!ctx->touchpad_always_keys && ctx->meta_mode) {
+
+		// Escape key exits meta mode
+		if (keycode == KEY_ESC) {
+			if (ev->state == KEY_STATE_RELEASED) {
+				disable_meta_mode(ctx);
+			}
+			return;
+		}
 
 		// Handle function dispatch meta mode keys
 		if (is_single_function_meta_mode_key(ctx, keycode)) {

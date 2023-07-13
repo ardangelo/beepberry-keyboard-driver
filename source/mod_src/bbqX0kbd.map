@@ -46,6 +46,8 @@ string F173 = "\033[1;5C"
 # Dollar key
 keycode 113 = dollar
 
+# Alt + enter
+keycode 147 = Tab
 # Alt + backspace
 keycode 133 = Delete
 # Alt + dollar key
