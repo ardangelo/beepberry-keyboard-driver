@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Keyboard Driver for Blackberry Keyboards BBQ10 from arturo182. Software written by wallComputer.
- * sysfs.c: /sys/firmware/beepberry interface
+ * Kernel driver for Q20 keyboard by ardangelo
+ * References work by arturo182, wallComputer
+ * sysfs.c: /sys/firmware/beepy interface
  */
 
 #include <linux/types.h>
@@ -169,8 +170,8 @@ struct kobj_attribute keyboard_backlight_attr
 	= __ATTR(keyboard_backlight, 0220, NULL, keyboard_backlight_store);
 
 // Sysfs attributes (entries)
-struct kobject *beepberry_kobj = NULL;
-static struct attribute *beepberry_attrs[] = {
+struct kobject *beepy_kobj = NULL;
+static struct attribute *beepy_attrs[] = {
     &battery_raw_attr.attr,
 	&battery_volts_attr.attr,
 	&battery_percent_attr.attr,
@@ -181,20 +182,20 @@ static struct attribute *beepberry_attrs[] = {
 	&keyboard_backlight_attr.attr,	
     NULL,
 };
-static struct attribute_group beepberry_attr_group = {
-    .attrs = beepberry_attrs
+static struct attribute_group beepy_attr_group = {
+    .attrs = beepy_attrs
 };
 
 int sysfs_probe(void)
 {
-	// Create sysfs entry for beepberry
-	if ((beepberry_kobj = kobject_create_and_add("beepberry", firmware_kobj)) == NULL) {
+	// Create sysfs entry for beepy
+	if ((beepy_kobj = kobject_create_and_add("beepy", firmware_kobj)) == NULL) {
     	return -ENOMEM;
 	}
 
 	// Create sysfs attributes
-	if (sysfs_create_group(beepberry_kobj, &beepberry_attr_group)){
-		kobject_put(beepberry_kobj);
+	if (sysfs_create_group(beepy_kobj, &beepy_attr_group)){
+		kobject_put(beepy_kobj);
 		return -ENOMEM;
 	}
 
@@ -204,8 +205,8 @@ int sysfs_probe(void)
 void sysfs_shutdown(void)
 {
 	// Remove sysfs entry
-	if (beepberry_kobj) {
-		kobject_put(beepberry_kobj);
-		beepberry_kobj = NULL;
+	if (beepy_kobj) {
+		kobject_put(beepy_kobj);
+		beepy_kobj = NULL;
 	}
 }

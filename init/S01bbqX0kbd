@@ -1,0 +1,35 @@
+#!/bin/sh
+#
+# bbqX0kbd        Loads bbqX0kbd keymap.
+#
+
+umask 077
+
+start() {
+	/usr/bin/loadkeys /usr/share/keymaps/bbqX0kbd.map
+	echo "OK"
+}
+stop() {
+	echo "OK"
+}
+restart() {
+	stop
+	start
+}
+
+case "$1" in
+  start)
+	start
+	;;
+  stop)
+	stop
+	;;
+  restart|reload)
+	restart
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?

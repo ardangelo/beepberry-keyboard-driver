@@ -1,20 +1,11 @@
-# SPDX-License-Identifier: GPL-2.0
-# Keyboard Driver for Blackberry Keyboards BBQ10 from arturo182. Software written by wallComputer.
+obj-m += bbqX0kbd.o
+bbqX0kbd-objs += src/main.o src/input_iface.o src/params_iface.o src/sysfs_iface.o
+ccflags-y := -DDEBUG -g -std=gnu99 -Wno-declaration-after-statement
 
-include Kbuild
-CFLAGS_$(MODULE_NAME)_main.o := -DDEBUG
+.PHONY: all clean
 
-modules:
-	make -C $(KDIR) M=$(shell pwd) modules
-
-modules_install:
-	make -C $(KDIR) M=$(shell pwd) modules_install
-
-dtbo:
-	dtc -I dts -O dtb -o i2c-bbqX0kbd.dtbo source/dts_src/i2c-bbqX0kbd.dts
+all:
+	$(MAKE) -C '$(LINUX_DIR)' M='$(PWD)' modules
 
 clean:
-	make -C $(KDIR) M=$(PWD) clean
-	rm -rf i2c-bbqX0kbd.dtbo
-
-
+	$(MAKE) -C '$(LINUX_DIR)' M='$(PWD)' clean

@@ -37,7 +37,7 @@ Integrates with [Sharp DRM driver](https://github.com/ardangelo/sharp-drm-driver
 - Indicators for Shift, Phys. Alt, Control, Alt, Symbol, Meta mode
 - Meta mode key 0 toggles display color inversion
 
-Adds the following sysfs entries under `/sys/firmware/beepberry`:
+Adds the following sysfs entries under `/sys/firmware/beepy`:
 
 - `led`: 0 to disable LED, 1 to enable. Write-only.
 - `led_red`, `led_green`, `led_blue`: set LED color intensity from 0 to 255. Write-
