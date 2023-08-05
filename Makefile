@@ -2,7 +2,7 @@ obj-m += bbqX0kbd.o
 bbqX0kbd-objs += src/main.o src/input_iface.o src/params_iface.o src/sysfs_iface.o
 ccflags-y := -DDEBUG -g -std=gnu99 -Wno-declaration-after-statement
 
-.PHONY: all clean
+.PHONY: all clean install uninstall
 
 # LINUX_DIR is set by Buildroot, but not if running manually
 ifeq ($(LINUX_DIR),)
