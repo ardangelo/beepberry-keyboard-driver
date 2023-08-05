@@ -29,7 +29,7 @@ install: bbqX0kbd.ko bbqX0kbd.map i2c-bbqX0kbd.dtbo
 	install -D -m 0644 i2c-bbqX0kbd.dtbo /boot/overlays/
 	# Add configuration line if it wasn't already there
 	grep -qxF '$(BOOT_CONFIG_LINE)' /boot/config.txt \
-		|| echo '$(BOOT_CONFIG_LINE)' >> /boot/config.txt
+		|| echo '[all]\n$(BOOT_CONFIG_LINE)' >> /boot/config.txt
 	# Add auto-load module line if it wasn't already there
 	grep -qxF 'bbqX0kbd' /etc/modules \
 		|| echo 'bbqX0kbd' >> /etc/modules
