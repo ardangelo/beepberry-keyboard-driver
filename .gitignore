@@ -11,5 +11,4 @@
 *.log
 *.order
 *.cmd
-source/config.h
-source/dts_src/i2c-bbqX0kbd.dts
+*.o.d
