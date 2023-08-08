@@ -50,7 +50,7 @@ static int parse_u8(char const* buf)
 static int parse_and_write_i2c_u8(char const* buf, size_t count, uint8_t reg)
 {
 	int parsed;
-	
+
 	// Parse string entry
 	if ((parsed = parse_u8(buf)) < 0) {
 		return -EINVAL;
@@ -81,7 +81,7 @@ static ssize_t battery_raw_show(struct kobject *kobj, struct kobj_attribute *att
 	return sprintf(buf, "%d", total_level);
 }
 struct kobj_attribute battery_raw_attr
-	= __ATTR(battery_raw, 0440, battery_raw_show, NULL);
+	= __ATTR(battery_raw, 0444, battery_raw_show, NULL);
 
 // Battery volts level
 static ssize_t battery_volts_show(struct kobject *kobj, struct kobj_attribute *attr,
@@ -102,7 +102,7 @@ static ssize_t battery_volts_show(struct kobject *kobj, struct kobj_attribute *a
 	return sprintf(buf, "%d.%d", volts_fp / 100, volts_fp % 100);
 }
 struct kobj_attribute battery_volts_attr
-	= __ATTR(battery_volts, 0440, battery_volts_show, NULL);
+	= __ATTR(battery_volts, 0444, battery_volts_show, NULL);
 
 // Battery percent approximate
 static ssize_t battery_percent_show(struct kobject *kobj, struct kobj_attribute *attr,
@@ -126,7 +126,7 @@ static ssize_t battery_percent_show(struct kobject *kobj, struct kobj_attribute 
 	return sprintf(buf, "%d", percent);
 }
 struct kobj_attribute battery_percent_attr
-	= __ATTR(battery_percent, 0440, battery_percent_show, NULL);
+	= __ATTR(battery_percent, 0444, battery_percent_show, NULL);
 
 // LED on or off
 static ssize_t led_store(struct kobject *kobj, struct kobj_attribute *attr,

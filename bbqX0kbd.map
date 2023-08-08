@@ -35,7 +35,7 @@ altgr keycode 113 = dollar
 
 # Berry key sends Control + this code
 # Use it for Tmux prefix
-CtrlL keycode 171 = Control_b
+control keycode 171 = Control_b
 
 # Meta Q / A move between words
 keycode 172 = F172
