@@ -94,12 +94,13 @@ static ssize_t battery_volts_show(struct kobject *kobj, struct kobj_attribute *a
 		return volts_fp;
 	}
 
-	// Calculate voltage in fixed point
-	volts_fp *= 330 * 2;
+	//214 found after checking battery_raw just after charging cutoff
+	volts_fp *= 330 * 214;
+	volts_fp /= 100;
 	volts_fp /= 4095;
 
-	// Format into buffer
-	return sprintf(buf, "%d.%d", volts_fp / 100, volts_fp % 100);
+	//Format into buffer
+	return sprintf(buf, "%d.%02d", volts_fp / 100, volts_fp % 100);
 }
 struct kobj_attribute battery_volts_attr
 	= __ATTR(battery_volts, 0440, battery_volts_show, NULL);
@@ -108,19 +109,32 @@ struct kobj_attribute battery_volts_attr
 static ssize_t battery_percent_show(struct kobject *kobj, struct kobj_attribute *attr,
 	char *buf)
 {
-	int percent;
+	int percent, low, high;
 
 	// Read raw level
 	if ((percent = read_raw_battery_level()) < 0) {
 		return percent;
 	}
 
-	// Calculate voltage in fixed point
-	percent *= 330 * 2;
+	//Assumes cutoff voltage is 3.1v and max is 4.2v
+	low = 310;
+	high = 420;
+	//214 found after checking battery_raw just after charging cutoff
+	percent *= 330 * 214;
+	percent /= 100;
 	percent /= 4095;
 
-	// Range from 3.2V min to 4.2V max
-	percent -= 320;
+	//Go from volts to percentage
+	percent -= low;
+	percent *= 100;
+	percent /= high-low;
+
+	if (percent > 100) {
+		//Prevent percentage going over 100%, this can sometimes happen
+		//but only when the device is plugged in, the voltage drops enough
+		//when unplugged that it should never be >100% when unplugged anyway.
+		percent = 100;
+	}
 
 	// Format into buffer
 	return sprintf(buf, "%d", percent);
