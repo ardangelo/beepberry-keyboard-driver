@@ -14,6 +14,7 @@
 #include "input_iface.h"
 #include "params_iface.h"
 #include "sysfs_iface.h"
+#include "ioctl_iface.h"
 
 #if (BBQX0KBD_INT != BBQX0KBD_USE_INT)
 #error "Only supporting interrupts mode right now"
@@ -42,11 +43,17 @@ static int bbqX0kbd_probe(struct i2c_client* i2c_client, struct i2c_device_id co
 		return rc;
 	}
 
+	// Initialize ioctl interface
+	if ((rc = ioctl_probe())) {
+		return rc;
+	}
+
 	return 0;
 }
 
 static void bbqX0kbd_shutdown(struct i2c_client* i2c_client)
 {
+	ioctl_shutdown();
 	sysfs_shutdown();
 	params_shutdown();
 	input_shutdown(i2c_client);

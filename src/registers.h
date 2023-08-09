@@ -107,6 +107,18 @@
 #define REG_LED_R 						0x21
 #define REG_LED_G 						0x22
 #define REG_LED_B 						0x23
+
+#define REG_REWAKE_TIME 0x24
+#define REG_REWAKE 0x25
+
+#define REG_RTC_SEC 0x26
+#define REG_RTC_MIN 0x27
+#define REG_RTC_HOUR 0x28
+#define REG_RTC_MDAY 0x29
+#define REG_RTC_MON 0x2A
+#define REG_RTC_YEAR 0x2B
+#define REG_RTC_COMMIT 0x2C
+
 #endif
 
 

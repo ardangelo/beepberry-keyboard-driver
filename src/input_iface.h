@@ -113,4 +113,9 @@ void input_shutdown(struct i2c_client* i2c_client);
 irqreturn_t input_irq_handler(int irq, void *param);
 void input_workqueue_handler(struct work_struct *work_struct_ptr);
 
+int input_get_rtc(uint8_t* year, uint8_t* mon, uint8_t* day,
+	uint8_t* hour, uint8_t* min, uint8_t* sec);
+int input_set_rtc(uint8_t year, uint8_t mon, uint8_t day,
+	uint8_t hour, uint8_t min, uint8_t sec);
+
 #endif

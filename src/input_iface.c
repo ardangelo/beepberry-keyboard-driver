@@ -648,7 +648,7 @@ int input_probe(struct i2c_client* i2c_client)
 		return -ENODEV;
 	}
 	dev_info(&i2c_client->dev,
-		"%s BBQX0KBD indev Software version: 0x%02X\n", __func__,
+		"%s BBQX0KBD Software version: 0x%02X\n", __func__,
 		g_ctx->version_number);
 
 	// Write configuration 1
@@ -899,3 +899,67 @@ void input_workqueue_handler(struct work_struct *work_struct_ptr)
 	}
 }
 
+int input_get_rtc(uint8_t* year, uint8_t* mon, uint8_t* day,
+    uint8_t* hour, uint8_t* min, uint8_t* sec)
+{
+	int rc;
+
+	if (!g_ctx || !g_ctx->i2c_client) {
+		return -EAGAIN;
+	}
+
+	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_RTC_YEAR, year))) {
+		return rc;
+	}
+	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_RTC_MON, mon))) {
+		return rc;
+	}
+	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_RTC_MDAY, day))) {
+		return rc;
+	}
+	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_RTC_HOUR, hour))) {
+		return rc;
+	}
+	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_RTC_MIN, min))) {
+		return rc;
+	}
+	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_RTC_SEC, sec))) {
+		return rc;
+	}
+
+	return 0;
+}
+
+int input_set_rtc(uint8_t year, uint8_t mon, uint8_t day,
+    uint8_t hour, uint8_t min, uint8_t sec)
+{
+	int rc;
+
+	if (!g_ctx || !g_ctx->i2c_client) {
+		return -EAGAIN;
+	}
+
+	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_YEAR, year))) {
+		return rc;
+	}
+	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_MON, mon))) {
+		return rc;
+	}
+	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_MDAY, day))) {
+		return rc;
+	}
+	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_HOUR, hour))) {
+		return rc;
+	}
+	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_MIN, min))) {
+		return rc;
+	}
+	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_SEC, sec))) {
+		return rc;
+	}
+	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_COMMIT, 0x1))) {
+		return rc;
+	}
+
+	return 0;
+}
