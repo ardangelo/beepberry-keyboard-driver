@@ -54,6 +54,7 @@ keycode 133 = Delete
 keycode 232 = asciitilde
 
 # Physical Alt key
+keycode 130 = zero
 keycode 135 = numbersign
 keycode 136 = one
 keycode 137 = two
