@@ -1,12 +1,12 @@
 #!/bin/sh
 #
-# bbqX0kbd        Loads bbqX0kbd keymap.
+# beepykbd        Loads Beepy keyboard keymap.
 #
 
 umask 077
 
 start() {
-	/usr/bin/loadkeys /usr/share/keymaps/bbqX0kbd.map
+	/usr/bin/loadkeys /usr/share/keymaps/beepy-kbd.map
 	# System clock has to be set from hwclock after udev is loaded
 	echo "OK"
 }

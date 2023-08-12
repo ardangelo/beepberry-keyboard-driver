@@ -1,5 +1,5 @@
-config BR2_PACKAGE_BBQX0KBD
-	bool "bbqx0kbd"
+config BR2_PACKAGE_BEEPY_KBD
+	bool "beepy-kbd"
 	default y
 	depends on BR2_LINUX_KERNEL
 	select BR2_PACKAGE_I2C
@@ -7,4 +7,4 @@ config BR2_PACKAGE_BBQX0KBD
 	select BR2_PACKAGE_GPIO
 	select BR2_PACKAGE_RASPI_GPIO
 	help
-	  Kernel driver for Beepberry keyboard
+	  Kernel driver for Beepy keyboard and firmware

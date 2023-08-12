@@ -1,6 +1,6 @@
-# BBQX0KBD
+# Beepy keyboard driver
 
-Beepy device keyboard driver
+Originally bbqX0kbd
 
 ## Modifications
 
@@ -33,8 +33,8 @@ only.
 
 Module parameters:
 
-Write to `/sys/module/bbqX0kbd/parameters/<param>` to set, or unload and
-reload the module with `bbqX0kbd param=val`.
+Write to `/sys/module/beepy_kbd/parameters/<param>` to set, or unload and
+reload the module with `beepy-kbd param=val`.
 
 - `touchpad`: one of `meta` or `keys`
   - `meta`: default, will use the touchpad button to enable or disable meta mode.
@@ -101,7 +101,7 @@ To remove:
 
 
 - The Settings of the LCD can be changed as shown in [fbcp-ili9341](https://github.com/juj/fbcp-ili9341.git). Notably, the Data_Command Pin can be changed and Clock speed can be increased.
-- Look at the `bbqX0kbd.map` file for alternate key binds. Edit it as per your need and put the new map file in correct folder (as per `installer.sh`) to be loaded correctly in `/etc/default/keyboard`. One can use `sudo loadkeys path/to/bbqX0kbd.map` while the driver is running, and press keys to check their new key bindings before placing it in the right location. Once satisfied with your keymap, run `./remover.sh &&  ./installer.sh` to reinstall everything correctly.
+- Look at the `beepy-kbd.map` file for alternate key binds. Edit it as per your need and put the new map file in correct folder (as per `installer.sh`) to be loaded correctly in `/etc/default/keyboard`. One can use `sudo loadkeys path/to/beepy-kbd.map` while the driver is running, and press keys to check their new key bindings before placing it in the right location. Once satisfied with your keymap, run `./remover.sh &&  ./installer.sh` to reinstall everything correctly.
 
 ## Contributing
 Pull requests are welcome. 
