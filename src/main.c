@@ -121,4 +121,4 @@ module_exit(bbqX0kbd_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("wallComputer and Andrew D'Angelo <dangeloandrew@outlook.com>");
 MODULE_DESCRIPTION("BB Classic keyboard driver for Beepberry");
-MODULE_VERSION("0.5");
+MODULE_VERSION("2.0");
