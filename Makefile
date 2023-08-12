@@ -41,7 +41,7 @@ install_aux:
 	install -D -m 0644 $(BUILD_DIR)/beepy-kbd.dtbo /boot/overlays/
 	# Add configuration line if it wasn't already there
 	grep -qxF '$(BOOT_CONFIG_LINE)' /boot/config.txt \
-		|| echo '[all]\n$(BOOT_CONFIG_LINE)' >> /boot/config.txt
+		|| echo '[all]\ndtparam=i2c_arm=on\n$(BOOT_CONFIG_LINE)' >> /boot/config.txt
 	# Add auto-load module line if it wasn't already there
 	grep -qxF 'beepy-kbd' /etc/modules \
 		|| echo 'beepy-kbd' >> /etc/modules
