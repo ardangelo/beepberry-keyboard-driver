@@ -11,8 +11,8 @@
 		__overlay__ {
 			#address-cells = <1>;
 			#size-cells = <0>;
-			bbqX0kbd: bbqX0kbd@1f {
-				compatible = "wallComputer,bbqX0kbd";
+			beepy_kbd: beepy_kbd@1f {
+				compatible = "beepy-kbd";
 				reg = <0x1F>;
 				irq-gpio = <&gpio 11 0x2>;
 				interrupts = <11 2>;
@@ -22,7 +22,7 @@
 		};
 	};
 	__overrides__ {
-		irq_pin = <&bbqX0kbd>,"interrupts:0";
+		irq_pin = <&beepy_kbd>,"interrupts:0";
 	};
 };
 

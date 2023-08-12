@@ -12,3 +12,4 @@
 *.order
 *.cmd
 *.o.d
+*.tmp

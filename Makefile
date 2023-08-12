@@ -3,6 +3,11 @@ beepy-kbd-objs += src/main.o src/input_iface.o src/params_iface.o \
 	src/sysfs_iface.o src/ioctl_iface.o
 ccflags-y := -DDEBUG -g -std=gnu99 -Wno-declaration-after-statement
 
+dtb-y += beepy-kbd.dtbo
+
+targets += $(dtbo-y)    
+always  := $(dtbo-y)
+
 .PHONY: all clean install uninstall
 
 # LINUX_DIR is set by Buildroot, but not if running manually
@@ -12,16 +17,10 @@ endif
 
 BOOT_CONFIG_LINE := dtoverlay=beepy-kbd,irq_pin=4
 
-all: beepy-kbd.ko beepy-kbd.dtbo
+all:
+	$(MAKE) -C '$(LINUX_DIR)' M='$(shell pwd)'
 
-beepy-kbd.ko: src/*.c src/*.h
-	$(MAKE) -C '$(LINUX_DIR)' M='$(shell pwd)' modules
-
-beepy-kbd.dtbo: beepy-kbd.dts
-	dtc -@ -I dts -O dtb -W no-unit_address_vs_reg -o $@ $<
-
-install: beepy-kbd.ko beepy-kbd.map beepy-kbd.dtbo
-	# Install kernel module
+install:
 	$(MAKE) -C '$(LINUX_DIR)' M='$(shell pwd)' modules_install
 	# Install keymap
 	mkdir -p /usr/local/share/kbd/keymaps/

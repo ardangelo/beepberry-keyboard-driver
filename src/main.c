@@ -71,12 +71,12 @@ static void bbqX0kbd_remove(struct i2c_client* i2c_client)
 
 // Device IDs
 static const struct i2c_device_id bbqX0kbd_i2c_device_id[] = {
-	{ "bbqX0kbd", 0, },
+	{ "beepy-kbd", 0, },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, bbqX0kbd_i2c_device_id);
 static const struct of_device_id bbqX0kbd_of_device_id[] = {
-	{ .compatible = "wallComputer,bbqX0kbd", },
+	{ .compatible = "beepy-kbd", },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, bbqX0kbd_of_device_id);
@@ -84,7 +84,7 @@ MODULE_DEVICE_TABLE(of, bbqX0kbd_of_device_id);
 // Callbacks
 static struct i2c_driver bbqX0kbd_driver = {
 	.driver = {
-		.name = "bbqX0kbd",
+		.name = "beepy-kbd",
 		.of_match_table = bbqX0kbd_of_device_id,
 	},
 	.probe    = bbqX0kbd_probe,
