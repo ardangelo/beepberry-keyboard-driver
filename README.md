@@ -2,6 +2,29 @@
 
 Originally bbqX0kbd
 
+## Cleaning old drivers
+
+The `bbqX0kbd` driver has been renamed to `beepy-kbd`, and `sharp` to `sharp-drm`.
+
+Driver packages will detect if one of these old modules is installed and cancel installation of the package.
+
+Remove the following files:
+
+* `/lib/modules/<uname>/extra/bbqX0kbd.ko*`
+* `/lib/modules/<uname>/extra/sharp.ko*`
+* `/boot/overlays/i2c-bbqX0kbd.dtbo`
+* `/boot/overlays/sharp.dtbo`
+
+Remove the following lines from `/boot/config.txt`:
+
+* `dtoverlay=bbqX0kbd,irq_pin=4`
+* `dtoverlay=sharp`
+
+Remove the following lines from `/etc/modules`:
+
+* `bbqX0kbd`
+* `sharp`
+
 ## Modifications
 
 - Supports sticky modifier keys. Must be used with the corresponding RP2040 firmware
