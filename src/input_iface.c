@@ -24,6 +24,9 @@
 #include <asm/uaccess.h>
 #include <linux/bio.h>
 
+// Helper processes
+#include <linux/umh.h>
+
 #include "config.h"
 #include "debug_levels.h"
 
@@ -49,6 +52,22 @@ static struct sticky_modifier sticky_shift;
 static struct sticky_modifier sticky_phys_alt;
 static struct sticky_modifier sticky_alt;
 static struct sticky_modifier sticky_altgr;
+
+// Power helpers
+
+static void run_poweroff(struct kbd_ctx* ctx)
+{
+	// Set LED to red
+	kbd_write_i2c_u8(ctx->i2c_client, REG_LED_R, 0xff);
+	kbd_write_i2c_u8(ctx->i2c_client, REG_LED_G, 0x0);
+	kbd_write_i2c_u8(ctx->i2c_client, REG_LED_B, 0x0);
+	kbd_write_i2c_u8(ctx->i2c_client, REG_LED, 0x1);
+
+	// Run poweroff
+	static const char * const poweroff_argv[] = {
+		"/sbin/poweroff", "now", NULL };
+	call_usermodehelper(poweroff_argv[0], (char**)poweroff_argv, NULL, UMH_NO_WAIT);
+}
 
 // Display helpers
 
@@ -441,7 +460,7 @@ static uint8_t map_repeatable_meta_mode_key(struct kbd_ctx* ctx, uint8_t keycode
 	return keycode;
 }
 
-// Main key event handler 
+// Main key event handler
 static void report_key_input_event(struct kbd_ctx* ctx,
 	struct fifo_item const* ev)
 {
@@ -492,6 +511,13 @@ static void report_key_input_event(struct kbd_ctx* ctx,
 			input_report_key(ctx->input_dev, 171, TRUE);
 			input_report_key(ctx->input_dev, 171, FALSE);
 			input_report_key(ctx->input_dev, KEY_LEFTCTRL, FALSE);
+		}
+		return;
+
+	// Power key runs /sbin/poweroff if `handle_poweroff` is set
+	} else if (ctx->handle_poweroff && (keycode == KEY_POWER)) {
+		if (ev->state == KEY_STATE_RELEASED) {
+			run_poweroff(ctx);
 		}
 		return;
 	}
@@ -594,6 +620,8 @@ int input_probe(struct i2c_client* i2c_client)
 	g_ctx->brightness = 0xFF;
 	g_ctx->last_brightness = 0xFF;
 	g_ctx->mono_invert = 0;
+	g_ctx->touchpad_always_keys = 0;
+	g_ctx->handle_poweroff = 0;
 
 	g_ctx->held_modifier_keys = 0;
 	g_ctx->pending_sticky_modifier_keys = 0;
@@ -728,6 +756,11 @@ int input_probe(struct i2c_client* i2c_client)
 		return rc;
 	}
 
+	// Notify firmware that driver has initialized
+	// Clear boot indicator LED
+	(void)kbd_write_i2c_u8(i2c_client, REG_LED, 0);
+	(void)kbd_write_i2c_u8(i2c_client, REG_DRIVER_STATE, 1);
+
 	return 0;
 }
 
@@ -737,7 +770,11 @@ void input_shutdown(struct i2c_client* i2c_client)
 
 	dev_info_fe(&i2c_client->dev,
 		"%s Shutting Down Keyboard And Screen Backlight.\n", __func__);
-	
+
+	// Turn off LED and notify firmware that driver has shut down
+	(void)kbd_write_i2c_u8(i2c_client, REG_LED, 0);
+	(void)kbd_write_i2c_u8(i2c_client, REG_DRIVER_STATE, 0);
+
 	// Turn off backlight
 	(void)kbd_write_i2c_u8(i2c_client, REG_BKL, 0);
 

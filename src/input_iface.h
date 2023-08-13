@@ -39,6 +39,7 @@ struct kbd_ctx
 	struct work_struct work_struct;
 	uint8_t version_number;
 	uint8_t touchpad_always_keys; // Set by parameter `touchpad_setting`
+	uint8_t handle_poweroff; // Set by parameter `handle_poweroff`
 
 	// Map from input HID scancodes to Linux keycodes
 	uint8_t *keycode_map;

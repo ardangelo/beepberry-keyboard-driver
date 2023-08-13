@@ -119,6 +119,8 @@
 #define REG_RTC_YEAR 0x2B
 #define REG_RTC_COMMIT 0x2C
 
+#define REG_DRIVER_STATE 0x2D
+
 #endif
 
 

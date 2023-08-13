@@ -63,8 +63,6 @@ static int rtc_dev_open(struct inode *inode, struct file *file)
 static ssize_t
 rtc_dev_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
 {
-	struct rtc_device *rtc = file->private_data;
-
 	unsigned long data;
 	ssize_t ret;
 
@@ -93,7 +91,6 @@ static long rtc_dev_ioctl(struct file *file,
 	unsigned int cmd, unsigned long arg)
 {
 	int err = 0;
-	struct rtc_device *rtc = file->private_data;
 	struct rtc_time tm;
 	void __user *uarg = (void __user *) arg;
 
