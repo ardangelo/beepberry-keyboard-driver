@@ -15,6 +15,10 @@ Remove the following files:
 * `/boot/overlays/i2c-bbqX0kbd.dtbo`
 * `/boot/overlays/sharp.dtbo`
 
+Rebuild the module list:
+
+* `depmod -a`
+
 Remove the following lines from `/boot/config.txt`:
 
 * `dtoverlay=bbqX0kbd,irq_pin=4`
