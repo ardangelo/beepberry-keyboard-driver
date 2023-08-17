@@ -60,10 +60,6 @@
 
 #define REG_RST                         0x08
 #define REG_FIF                         0x09
-#define KEY_IDLE_STATE					0
-#define KEY_PRESSED_STATE               1
-#define KEY_PRESSED_AND_HELD_STATE      2
-#define KEY_RELEASED_STATE              3
 
 #define REG_BK2                         0x0A
 
@@ -101,6 +97,12 @@
 
 #define REG_TOX							0x15
 #define REG_TOY							0x16
+
+#define REG_ADC 						0x17
+#define REG_LED 						0x20
+#define REG_LED_R 						0x21
+#define REG_LED_G 						0x22
+#define REG_LED_B 						0x23
 #endif
 
 

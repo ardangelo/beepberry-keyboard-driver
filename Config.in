@@ -1,0 +1,10 @@
+config BR2_PACKAGE_BEEPY_KBD
+	bool "beepy-kbd"
+	default y
+	depends on BR2_LINUX_KERNEL
+	select BR2_PACKAGE_I2C
+	select BR2_PACKAGE_SPI
+	select BR2_PACKAGE_GPIO
+	select BR2_PACKAGE_RASPI_GPIO
+	help
+	  Kernel driver for Beepy keyboard and firmware

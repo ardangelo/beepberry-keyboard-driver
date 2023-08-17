@@ -30,3 +30,15 @@
 // #define DEBUG_LEVEL                (DEBUG_LEVEL_LD)
 // #define DEBUG_LEVEL			(DEBUG_LEVEL_FE | DEBUG_LEVEL_RW | DEBUG_LEVEL_LD)
 #endif
+
+#if (DEBUG_LEVEL & DEBUG_LEVEL_FE)
+#define dev_info_fe(...) dev_info(__VA_ARGS__)
+#else
+#define dev_info_fe(...)
+#endif
+
+#if (DEBUG_LEVEL & DEBUG_LEVEL_LD)
+#define dev_info_ld(...) dev_info(__VA_ARGS__)
+#else
+#define dev_info_ld(...)
+#endif
