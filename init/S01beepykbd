@@ -1,12 +1,17 @@
 #!/bin/sh
-#
-# beepykbd        Loads Beepy keyboard keymap.
-#
+### BEGIN INIT INFO
+# Provides:          S01beepykbd
+# Required-Start:    $all
+# Required-Stop:     $all
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Loads Beepy keyboard keymap
+### END INIT INFO
 
 umask 077
 
 start() {
-	/usr/bin/loadkeys /usr/share/keymaps/beepy-kbd.map
+	/usr/bin/loadkeys /usr/local/share/kbd/keymapsbeepy-kbd.map
 	# System clock has to be set from hwclock after udev is loaded
 	echo "OK"
 }
