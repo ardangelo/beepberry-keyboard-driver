@@ -36,8 +36,8 @@ install: install_modules install_aux
 # Separate rule to be called from DKMS
 install_aux:
 	# Install keymap
-	mkdir -p /usr/local/share/kbd/keymaps/
-	install -D -m 0644 $(BUILD_DIR)/beepy-kbd.map /usr/local/share/kbd/keymaps/
+	mkdir -p /usr/share/kbd/keymaps/
+	install -D -m 0644 $(BUILD_DIR)/beepy-kbd.map /usr/share/kbd/keymaps/
 	# Install device tree overlay
 	install -D -m 0644 $(BUILD_DIR)/beepy-kbd.dtbo /boot/overlays/
 	# Add configuration line if it wasn't already there
@@ -49,6 +49,9 @@ install_aux:
 	# Configure keymap as default
 	grep -qxF '$(KMAP_LINE)' /etc/default/keyboard \
 		|| echo '$(KMAP_LINE)' >> /etc/default/keyboard
+	rm -f /etc/console-setup/cached_setup_keyboard.sh
+	dpkg-reconfigure keyboard-configuration \
+		|| echo "dpkg-reconfigure failed, keymap may not be applied"
 
 uninstall:
 	# Remove auto-load module line and create a backup file
@@ -58,9 +61,12 @@ uninstall:
 	# Remove device tree overlay
 	rm -f /boot/overlays/beepy-kbd.dtbo
 	# Remove keymap
-	rm -f /usr/local/share/kbd/keymaps/beepy-kbd.map
+	rm -f /usr/share/kbd/keymaps/beepy-kbd.map
 	# Remove keymap setting
 	sed -i.save '/$(KMAP_LINE)/d' /etc/default/keyboard
+	rm -f /etc/console-setup/cached_setup_keyboard.sh
+	dpkg-reconfigure keyboard-configuration \
+		|| echo "dpkg-reconfigure failed, old keymap may not be applied"
 
 clean:
 	$(MAKE) -C '$(LINUX_DIR)' M='$(shell pwd)' clean
