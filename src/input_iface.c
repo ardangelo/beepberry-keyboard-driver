@@ -527,7 +527,7 @@ static void report_key_input_event(struct kbd_ctx* ctx,
 
 		// Ignore modifier keys in meta mode
 		if ((keycode == KEY_LEFTSHIFT) || (keycode == KEY_RIGHTSHIFT)
-		 || (keycode == KEY_LEFTALT) || (keycode == KEY_RIGHTALT)) {
+		 || (keycode == KEY_LEFTALT) || (keycode == KEY_RIGHTALT)
 		 || (keycode == KEY_LEFTCTRL) || (keycode == KEY_RIGHTCTRL)) {
 			return;
 		}
