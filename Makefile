@@ -21,6 +21,7 @@ BUILD_DIR := .
 endif
 
 BOOT_CONFIG_LINE := dtoverlay=beepy-kbd,irq_pin=4
+KMAP_LINE := KMAP=/usr/share/kbd/keymaps/beepy-kbd.map
 
 all:
 	$(MAKE) -C '$(LINUX_DIR)' M='$(shell pwd)'
@@ -45,6 +46,9 @@ install_aux:
 	# Add auto-load module line if it wasn't already there
 	grep -qxF 'beepy-kbd' /etc/modules \
 		|| echo 'beepy-kbd' >> /etc/modules
+	# Configure keymap as default
+	grep -qxF '$(KMAP_LINE)' /etc/default/keyboard \
+		|| echo '$(KMAP_LINE)' >> /etc/default/keyboard
 
 uninstall:
 	# Remove auto-load module line and create a backup file
@@ -55,6 +59,8 @@ uninstall:
 	rm -f /boot/overlays/beepy-kbd.dtbo
 	# Remove keymap
 	rm -f /usr/local/share/kbd/keymaps/beepy-kbd.map
+	# Remove keymap setting
+	sed -i.save '/$(KMAP_LINE)/d' /etc/default/keyboard
 
 clean:
 	$(MAKE) -C '$(LINUX_DIR)' M='$(shell pwd)' clean

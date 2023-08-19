@@ -525,6 +525,13 @@ static void report_key_input_event(struct kbd_ctx* ctx,
 	// Handle keys without modifiers in meta mode
 	if (!ctx->touchpad_always_keys && ctx->meta_mode) {
 
+		// Ignore modifier keys in meta mode
+		if ((keycode == KEY_LEFTSHIFT) || (keycode == KEY_RIGHTSHIFT)
+		 || (keycode == KEY_LEFTALT) || (keycode == KEY_RIGHTALT)) {
+		 || (keycode == KEY_LEFTCTRL) || (keycode == KEY_RIGHTCTRL)) {
+			return;
+		}
+
 		// Escape key exits meta mode
 		if (keycode == KEY_ESC) {
 			if (ev->state == KEY_STATE_RELEASED) {
