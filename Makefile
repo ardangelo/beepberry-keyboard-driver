@@ -1,6 +1,6 @@
 obj-m += beepy-kbd.o
 beepy-kbd-objs += src/main.o src/input_iface.o src/params_iface.o \
-	src/sysfs_iface.o src/ioctl_iface.o
+	src/sysfs_iface.o
 ccflags-y := -DDEBUG -g -std=gnu99 -Wno-declaration-after-statement
 
 dtb-y += beepy-kbd.dtbo

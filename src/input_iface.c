@@ -18,6 +18,7 @@
 #include <linux/workqueue.h>
 #include <linux/ktime.h>
 #include <linux/kdev_t.h>
+#include <linux/rtc.h>
 
 // File access
 #include <linux/fs.h>
@@ -101,6 +102,109 @@ static void invert_display(struct kbd_ctx* ctx)
 	(void)ioctl_call_int(SHARP_DEVICE_PATH, SHARP_IOCTQ_SET_INVERT, (ctx->mono_invert)
 			? 1
 			: 0);
+}
+
+// RTC helpers
+
+int input_get_rtc(uint8_t* year, uint8_t* mon, uint8_t* day,
+    uint8_t* hour, uint8_t* min, uint8_t* sec)
+{
+	int rc;
+
+	if (!g_ctx || !g_ctx->i2c_client) {
+		return -EAGAIN;
+	}
+
+	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_RTC_YEAR, year))) {
+		return rc;
+	}
+	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_RTC_MON, mon))) {
+		return rc;
+	}
+	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_RTC_MDAY, day))) {
+		return rc;
+	}
+	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_RTC_HOUR, hour))) {
+		return rc;
+	}
+	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_RTC_MIN, min))) {
+		return rc;
+	}
+	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_RTC_SEC, sec))) {
+		return rc;
+	}
+
+	return 0;
+}
+
+int input_set_rtc(uint8_t year, uint8_t mon, uint8_t day,
+    uint8_t hour, uint8_t min, uint8_t sec)
+{
+	int rc;
+
+	if (!g_ctx || !g_ctx->i2c_client) {
+		return -EAGAIN;
+	}
+
+	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_YEAR, year))) {
+		return rc;
+	}
+	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_MON, mon))) {
+		return rc;
+	}
+	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_MDAY, day))) {
+		return rc;
+	}
+	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_HOUR, hour))) {
+		return rc;
+	}
+	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_MIN, min))) {
+		return rc;
+	}
+	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_SEC, sec))) {
+		return rc;
+	}
+	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_COMMIT, 0x1))) {
+		return rc;
+	}
+
+	return 0;
+}
+
+static int i2c_set_time(struct device *dev, struct rtc_time *tm)
+{
+	int rc;
+
+	if ((rc = input_set_rtc((uint8_t)tm->tm_year, (uint8_t)tm->tm_mon,
+		(uint8_t)tm->tm_mday, (uint8_t)tm->tm_hour, (uint8_t)tm->tm_min,
+		(uint8_t)tm->tm_sec))) {
+		printk(KERN_ERR "i2c_set_time failed: %d\n", rc);
+		return rc;
+	}
+
+	printk(KERN_INFO "bbqX0kbd: updated RTC\n");
+
+	return 0;
+}
+
+static int i2c_read_time(struct device *dev, struct rtc_time *tm)
+{
+	int rc;
+	uint8_t year, mon, mday, hour, min, sec;
+
+	if ((rc = input_get_rtc(&year, &mon, &mday, &hour, &min, &sec))) {
+		printk(KERN_ERR "i2c_read_time failed: %d\n", rc);
+		return rc;
+	}
+
+	tm->tm_year = year;
+	tm->tm_mon = mon;
+	tm->tm_mday = mday;
+	tm->tm_hour = hour;
+	tm->tm_min = min;
+	tm->tm_sec = sec;
+
+	return 0;
 }
 
 // Sticky modifier helpers
@@ -602,10 +706,16 @@ static void report_key_input_event(struct kbd_ctx* ctx,
 	}
 }
 
+static const struct rtc_class_ops beepy_rtc_ops = {
+	.read_time = i2c_read_time,
+	.set_time = i2c_set_time,
+};
+
 int input_probe(struct i2c_client* i2c_client)
 {
 	int rc, i;
 	uint8_t reg_value;
+	struct rtc_device *rtc;
 
 	// Allocate keyboard context (managed by device lifetime)
 	g_ctx = devm_kzalloc(&i2c_client->dev, sizeof(*g_ctx), GFP_KERNEL);
@@ -761,6 +871,15 @@ int input_probe(struct i2c_client* i2c_client)
 		dev_err(&i2c_client->dev,
 			"Failed to register input device, error: %d\n", rc);
 		return rc;
+	}
+
+	// Register RTC device
+	rtc = devm_rtc_device_register(&i2c_client->dev,
+		"beepy-rtc", &beepy_rtc_ops, THIS_MODULE);
+	if (IS_ERR(rtc)) {
+		dev_err(&i2c_client->dev,
+			"Failed to register RTC device\n");
+		return PTR_ERR(rtc);
 	}
 
 	// Notify firmware that driver has initialized
@@ -941,69 +1060,4 @@ void input_workqueue_handler(struct work_struct *work_struct_ptr)
 	if (kbd_write_i2c_u8(ctx->i2c_client, REG_INT, 0)) {
 		return;
 	}
-}
-
-int input_get_rtc(uint8_t* year, uint8_t* mon, uint8_t* day,
-    uint8_t* hour, uint8_t* min, uint8_t* sec)
-{
-	int rc;
-
-	if (!g_ctx || !g_ctx->i2c_client) {
-		return -EAGAIN;
-	}
-
-	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_RTC_YEAR, year))) {
-		return rc;
-	}
-	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_RTC_MON, mon))) {
-		return rc;
-	}
-	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_RTC_MDAY, day))) {
-		return rc;
-	}
-	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_RTC_HOUR, hour))) {
-		return rc;
-	}
-	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_RTC_MIN, min))) {
-		return rc;
-	}
-	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_RTC_SEC, sec))) {
-		return rc;
-	}
-
-	return 0;
-}
-
-int input_set_rtc(uint8_t year, uint8_t mon, uint8_t day,
-    uint8_t hour, uint8_t min, uint8_t sec)
-{
-	int rc;
-
-	if (!g_ctx || !g_ctx->i2c_client) {
-		return -EAGAIN;
-	}
-
-	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_YEAR, year))) {
-		return rc;
-	}
-	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_MON, mon))) {
-		return rc;
-	}
-	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_MDAY, day))) {
-		return rc;
-	}
-	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_HOUR, hour))) {
-		return rc;
-	}
-	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_MIN, min))) {
-		return rc;
-	}
-	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_SEC, sec))) {
-		return rc;
-	}
-	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_COMMIT, 0x1))) {
-		return rc;
-	}
-
-	return 0;
 }
