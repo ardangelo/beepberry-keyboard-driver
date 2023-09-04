@@ -82,7 +82,7 @@ static int set_handle_poweroff_setting(struct kbd_ctx *ctx, char const* val)
 		return 0;
 	}
 
-	ctx->handle_poweroff = (val[0] != '0');
+	ctx->fw_handle_poweroff = (val[0] != '0');
 	return 0;
 }
 

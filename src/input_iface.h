@@ -8,6 +8,7 @@
 
 #include <linux/types.h>
 #include <linux/interrupt.h>
+#include <linux/i2c.h>
 
 #include "registers.h"
 
@@ -33,13 +34,10 @@ struct fifo_item
 	enum rp2040_key_state state : 4;
 };
 
-// It's just hard to keep typing bbqX0kbd_data...
 struct kbd_ctx
 {
 	struct work_struct work_struct;
 	uint8_t version_number;
-	uint8_t touchpad_always_keys; // Set by parameter `touchpad_setting`
-	uint8_t handle_poweroff; // Set by parameter `handle_poweroff`
 
 	// Map from input HID scancodes to Linux keycodes
 	uint8_t *keycode_map;
@@ -63,20 +61,22 @@ struct kbd_ctx
 	// when the key is released after phys. alt is released
 
 	// Touch and mouse flags
+	uint8_t touchpad_always_keys;
 	uint8_t touch_event_flag;
 	int8_t touch_rel_x;
 	int8_t touch_rel_y;
 
-	// Meta mode enabled flag
-	uint8_t meta_mode;
+	// Meta mode settings
+	uint8_t meta_enabled;
 	uint8_t meta_touch_keys_mode;
 
-	// Keyboard brightness
-	uint8_t brightness;
-	uint8_t last_brightness;
+	// Firmware settings
+	uint8_t fw_brightness;
+	uint8_t fw_last_brightness;
+	uint8_t fw_handle_poweroff;
 
-	// Display flags
-	uint8_t mono_invert;
+	// Display settings
+	uint8_t display_mono_invert;
 
 	struct i2c_client *i2c_client;
 	struct input_dev *input_dev;
@@ -114,9 +114,57 @@ void input_shutdown(struct i2c_client* i2c_client);
 irqreturn_t input_irq_handler(int irq, void *param);
 void input_workqueue_handler(struct work_struct *work_struct_ptr);
 
-int input_get_rtc(uint8_t* year, uint8_t* mon, uint8_t* day,
+// Internal interface
+
+void input_send_control(struct kbd_ctx* ctx);
+void input_send_alt(struct kbd_ctx* ctx);
+
+// Display
+
+void input_display_invert(struct kbd_ctx* ctx);
+
+void input_display_set_indicator(uint8_t idx, char c);
+void input_display_clear_indicator(uint8_t idx);
+
+int input_display_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx);
+void input_display_shutdown(struct i2c_client* i2c_client);
+
+// Firmware
+
+void input_fw_run_poweroff(struct kbd_ctx* ctx);
+
+void input_fw_decrease_brightness(struct kbd_ctx* ctx);
+void input_fw_increase_brightness(struct kbd_ctx* ctx);
+void input_fw_toggle_brightness(struct kbd_ctx* ctx);
+
+int input_fw_enable_touch_interrupts(struct kbd_ctx* ctx);
+int input_fw_disable_touch_interrupts(struct kbd_ctx* ctx);
+
+void input_fw_read_fifo(struct kbd_ctx* ctx);
+
+int input_fw_get_rtc(uint8_t* year, uint8_t* mon, uint8_t* day,
 	uint8_t* hour, uint8_t* min, uint8_t* sec);
-int input_set_rtc(uint8_t year, uint8_t mon, uint8_t day,
+int input_fw_set_rtc(uint8_t year, uint8_t mon, uint8_t day,
 	uint8_t hour, uint8_t min, uint8_t sec);
+
+int input_fw_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx);
+void input_fw_shutdown(struct i2c_client* i2c_client);
+
+// Meta mode
+
+void input_meta_enable(struct kbd_ctx* ctx);
+void input_meta_disable(struct kbd_ctx* ctx);
+
+void input_meta_enable_touch_keys_mode(struct kbd_ctx* ctx);
+
+bool input_meta_is_single_function_key(struct kbd_ctx* ctx, uint8_t keycode);
+void input_meta_run_single_function_key(struct kbd_ctx* ctx, uint8_t keycode);
+uint8_t input_meta_map_repeatable_key(struct kbd_ctx* ctx, uint8_t keycode);
+
+int input_meta_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx);
+
+// RTC
+
+int input_rtc_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx);
 
 #endif

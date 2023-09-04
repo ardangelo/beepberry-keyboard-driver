@@ -4,48 +4,21 @@
  * input_iface.c: Key handler implementation
  */
 
-#include <linux/backlight.h>
-#include <linux/delay.h>
-#include <linux/i2c.h>
-#include <linux/init.h>
 #include <linux/input.h>
 #include <linux/module.h>
-#include <linux/of.h>
-#include <linux/platform_device.h>
-#include <linux/property.h>
-#include <linux/slab.h>
-#include <linux/types.h>
-#include <linux/workqueue.h>
-#include <linux/ktime.h>
-#include <linux/kdev_t.h>
-#include <linux/rtc.h>
-
-// File access
-#include <linux/fs.h>
-#include <asm/uaccess.h>
-#include <linux/bio.h>
-
-// Helper processes
-#include <linux/umh.h>
 
 #include "config.h"
 #include "debug_levels.h"
 
-#include "i2c_helper.h"
 #include "params_iface.h"
 #include "input_iface.h"
 
-#include "bbq20kbd_pmod_codes.h"
+#include "i2c_helper.h"
 
-#define SHARP_DEVICE_PATH "/dev/sharp"
+#include "bbq20kbd_pmod_codes.h"
 
 // Global keyboard context and sysfs data
 struct kbd_ctx *g_ctx = NULL;
-
-// Display ioctl
-#define SHARP_IOC_MAGIC 0xd5
-#define SHARP_IOCTQ_SET_INVERT _IOW(SHARP_IOC_MAGIC, 1, uint32_t)
-#define SHARP_IOCTQ_SET_INDICATOR _IOW(SHARP_IOC_MAGIC, 2, uint32_t)
 
 // Sticky modifier structs
 static struct sticky_modifier sticky_ctrl;
@@ -53,159 +26,6 @@ static struct sticky_modifier sticky_shift;
 static struct sticky_modifier sticky_phys_alt;
 static struct sticky_modifier sticky_alt;
 static struct sticky_modifier sticky_altgr;
-
-// Power helpers
-
-static void run_poweroff(struct kbd_ctx* ctx)
-{
-	// Set LED to red
-	kbd_write_i2c_u8(ctx->i2c_client, REG_LED_R, 0xff);
-	kbd_write_i2c_u8(ctx->i2c_client, REG_LED_G, 0x0);
-	kbd_write_i2c_u8(ctx->i2c_client, REG_LED_B, 0x0);
-	kbd_write_i2c_u8(ctx->i2c_client, REG_LED, 0x1);
-
-	// Run poweroff
-	static const char * const poweroff_argv[] = {
-		"/sbin/poweroff", "now", NULL };
-	call_usermodehelper(poweroff_argv[0], (char**)poweroff_argv, NULL, UMH_NO_WAIT);
-}
-
-// Display helpers
-
-static int ioctl_call_int(char const* path, unsigned int cmd, int value)
-{
-	struct file *filp;
-
-	// Open file
-    if (IS_ERR((filp = filp_open(path, O_WRONLY, 0)))) {
-		// Silently return if display driver was not loaded
-		return 0;
-	}
-
-	filp->f_op->unlocked_ioctl(filp, cmd, value);
-
-	// Close file
-	filp_close(filp, NULL);
-
-	return 0;
-}
-
-// Invert display colors by writing to display driver parameter
-static void invert_display(struct kbd_ctx* ctx)
-{
-	// Update saved invert value
-	ctx->mono_invert = (ctx->mono_invert)
-		? 0
-		: 1;
-
-	// Write to parameter
-	(void)ioctl_call_int(SHARP_DEVICE_PATH, SHARP_IOCTQ_SET_INVERT, (ctx->mono_invert)
-			? 1
-			: 0);
-}
-
-// RTC helpers
-
-int input_get_rtc(uint8_t* year, uint8_t* mon, uint8_t* day,
-    uint8_t* hour, uint8_t* min, uint8_t* sec)
-{
-	int rc;
-
-	if (!g_ctx || !g_ctx->i2c_client) {
-		return -EAGAIN;
-	}
-
-	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_RTC_YEAR, year))) {
-		return rc;
-	}
-	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_RTC_MON, mon))) {
-		return rc;
-	}
-	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_RTC_MDAY, day))) {
-		return rc;
-	}
-	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_RTC_HOUR, hour))) {
-		return rc;
-	}
-	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_RTC_MIN, min))) {
-		return rc;
-	}
-	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_RTC_SEC, sec))) {
-		return rc;
-	}
-
-	return 0;
-}
-
-int input_set_rtc(uint8_t year, uint8_t mon, uint8_t day,
-    uint8_t hour, uint8_t min, uint8_t sec)
-{
-	int rc;
-
-	if (!g_ctx || !g_ctx->i2c_client) {
-		return -EAGAIN;
-	}
-
-	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_YEAR, year))) {
-		return rc;
-	}
-	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_MON, mon))) {
-		return rc;
-	}
-	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_MDAY, day))) {
-		return rc;
-	}
-	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_HOUR, hour))) {
-		return rc;
-	}
-	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_MIN, min))) {
-		return rc;
-	}
-	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_SEC, sec))) {
-		return rc;
-	}
-	if ((rc = kbd_write_i2c_u8(g_ctx->i2c_client, REG_RTC_COMMIT, 0x1))) {
-		return rc;
-	}
-
-	return 0;
-}
-
-static int i2c_set_time(struct device *dev, struct rtc_time *tm)
-{
-	int rc;
-
-	if ((rc = input_set_rtc((uint8_t)tm->tm_year, (uint8_t)tm->tm_mon,
-		(uint8_t)tm->tm_mday, (uint8_t)tm->tm_hour, (uint8_t)tm->tm_min,
-		(uint8_t)tm->tm_sec))) {
-		printk(KERN_ERR "i2c_set_time failed: %d\n", rc);
-		return rc;
-	}
-
-	printk(KERN_INFO "bbqX0kbd: updated RTC\n");
-
-	return 0;
-}
-
-static int i2c_read_time(struct device *dev, struct rtc_time *tm)
-{
-	int rc;
-	uint8_t year, mon, mday, hour, min, sec;
-
-	if ((rc = input_get_rtc(&year, &mon, &mday, &hour, &min, &sec))) {
-		printk(KERN_ERR "i2c_read_time failed: %d\n", rc);
-		return rc;
-	}
-
-	tm->tm_year = year;
-	tm->tm_mon = mon;
-	tm->tm_mday = mday;
-	tm->tm_hour = hour;
-	tm->tm_min = min;
-	tm->tm_sec = sec;
-
-	return 0;
-}
 
 // Sticky modifier helpers
 
@@ -253,7 +73,7 @@ static uint8_t map_phys_alt_keycode(struct kbd_ctx* ctx, uint8_t keycode)
 // the next alpha key only. If the same modifier key is pressed and
 // released again in sticky mode, it will be canceled.
 static void transition_sticky_modifier(struct kbd_ctx* ctx,
-		struct sticky_modifier const* sticky_modifier, enum rp2040_key_state state)
+	struct sticky_modifier const* sticky_modifier, enum rp2040_key_state state)
 {
 	if (state == KEY_STATE_PRESSED) {
 
@@ -283,8 +103,8 @@ static void transition_sticky_modifier(struct kbd_ctx* ctx,
 		sticky_modifier->set_callback(ctx, sticky_modifier);
 
 		// Set display indicator
-		ioctl_call_int(SHARP_DEVICE_PATH, SHARP_IOCTQ_SET_INDICATOR,
-			(sticky_modifier->indicator_idx << 8) | sticky_modifier->indicator_char);
+		input_display_set_indicator(sticky_modifier->indicator_idx,
+			sticky_modifier->indicator_char);
 
 	// Released
 	} else if (state == KEY_STATE_RELEASED) {
@@ -305,8 +125,7 @@ static void transition_sticky_modifier(struct kbd_ctx* ctx,
 
 			} else {
 				// Clear display indicator
-				ioctl_call_int(SHARP_DEVICE_PATH, SHARP_IOCTQ_SET_INDICATOR,
-					(sticky_modifier->indicator_idx << 8) | '\0');
+				input_display_clear_indicator(sticky_modifier->indicator_idx);
 			}
 
 			// Report modifier to input system as released
@@ -351,217 +170,8 @@ static void reset_sticky_modifier(struct kbd_ctx* ctx,
 		sticky_modifier->unset_callback(ctx, sticky_modifier);
 
 		// Clear display indicator
-		ioctl_call_int(SHARP_DEVICE_PATH, SHARP_IOCTQ_SET_INDICATOR,
-			(sticky_modifier->indicator_idx << 8) | '\0');
+		input_display_clear_indicator(sticky_modifier->indicator_idx);
 	}
-}
-
-// Brightness helpers
-
-static void kbd_decrease_brightness(struct kbd_ctx* ctx)
-{
-	// Decrease by delta, min at 0x0 brightness
-	ctx->brightness = (ctx->brightness < BBQ10_BRIGHTNESS_DELTA)
-		? 0x0
-		: ctx->brightness - BBQ10_BRIGHTNESS_DELTA;
-
-	// Set backlight using I2C
-	(void)kbd_write_i2c_u8(ctx->i2c_client, REG_BKL, ctx->brightness);
-}
-
-static void kbd_increase_brightness(struct kbd_ctx* ctx)
-{
-	// Increase by delta, max at 0xff brightness
-	ctx->brightness = (ctx->brightness > (0xff - BBQ10_BRIGHTNESS_DELTA))
-		? 0xff
-		: ctx->brightness + BBQ10_BRIGHTNESS_DELTA;
-
-	// Set backlight using I2C
-	(void)kbd_write_i2c_u8(ctx->i2c_client, REG_BKL, ctx->brightness);
-}
-
-static void kbd_toggle_brightness(struct kbd_ctx* ctx)
-{
-	// Toggle, save last brightness in context
-	if (ctx->last_brightness) {
-		ctx->brightness = ctx->last_brightness;
-		ctx->last_brightness = 0;
-	} else {
-		ctx->last_brightness = ctx->brightness;
-		ctx->brightness = 0;
-	}
-
-	// Set backlight using I2C
-	(void)kbd_write_i2c_u8(ctx->i2c_client, REG_BKL, ctx->brightness);
-}
-
-// I2C FIFO helpers
-
-// Transfer from I2C FIFO to internal context FIFO
-static void kbd_read_fifo(struct kbd_ctx* ctx)
-{
-	uint8_t fifo_idx;
-	int rc;
-
-	// Read number of FIFO items
-	if (kbd_read_i2c_u8(ctx->i2c_client, REG_KEY, &ctx->fifo_count)) {
-		return;
-	}
-	ctx->fifo_count &= REG_KEY_KEYCOUNT_MASK;
-
-	// Read and transfer all FIFO items
-	for (fifo_idx = 0; fifo_idx < ctx->fifo_count; fifo_idx++) {
-
-		// Read 2 fifo items
-		if ((rc = kbd_read_i2c_2u8(ctx->i2c_client, REG_FIF,
-			(uint8_t*)&ctx->fifo_data[fifo_idx]))) {
-
-			dev_err(&ctx->i2c_client->dev,
-				"%s Could not read REG_FIF, Error: %d\n", __func__, rc);
-			return;
-		}
-
-		// Advance FIFO position
-		dev_info_fe(&ctx->i2c_client->dev,
-			"%s %02d: 0x%02x%02x State %d Scancode %d\n",
-			__func__, fifo_idx,
-			((uint8_t*)&ctx->fifo_data[fifo_idx])[0],
-			((uint8_t*)&ctx->fifo_data[fifo_idx])[1],
-			ctx->fifo_data[fifo_idx].state,
-			ctx->fifo_data[fifo_idx].scancode);
-	}
-}
-
-// Meta mode helpers
-
-static void enable_meta_mode(struct kbd_ctx* ctx)
-{
-	ctx->meta_mode = 1;
-
-	// Set display indicator
-    (void)ioctl_call_int(SHARP_DEVICE_PATH, SHARP_IOCTQ_SET_INDICATOR,
-		(5 << 8) | (int)'m');
-}
-
-static void disable_meta_mode(struct kbd_ctx* ctx)
-{
-	ctx->meta_mode = 0;
-
-	// Clear display indicator
-    (void)ioctl_call_int(SHARP_DEVICE_PATH, SHARP_IOCTQ_SET_INDICATOR,
-		(5 << 8) | (int)'\0');
-
-	// Disable touch interrupts on I2C
-	if (kbd_write_i2c_u8(ctx->i2c_client, REG_CF2, 0)) {
-		return;
-	}
-
-	ctx->meta_touch_keys_mode = 0;
-}
-
-static void enable_meta_touch_keys_mode(struct kbd_ctx* ctx)
-{
-	// Enable touch interrupts on I2C
-	if (kbd_write_i2c_u8(ctx->i2c_client, REG_CF2, REG_CF2_TOUCH_INT)) {
-		return;
-	}
-
-	ctx->meta_touch_keys_mode = 1;
-}
-
-// Called before checking "repeatable" meta mode keys,
-// These keys map to an internal driver function rather than another key
-// They will not be sent to the input system
-// The check is separate from the run so that key-up events can be ignored
-static bool is_single_function_meta_mode_key(struct kbd_ctx* ctx, uint8_t keycode)
-{
-	switch (keycode) {
-	case KEY_T: return TRUE; // Tab
-	case KEY_X: return TRUE; // Control
-	case KEY_C: return TRUE; // Alt
-	case KEY_N: return TRUE; // Decrease brightness
-	case KEY_M: return TRUE; // Increase brightness
-	case KEY_MUTE: return TRUE; // Toggle brightness
-	case KEY_0: return TRUE; // Invert display
-	case KEY_COMPOSE: return TRUE; // Turn on touch keys mode
-	}
-
-	return FALSE;
-}
-static void run_single_function_meta_mode_key(struct kbd_ctx* ctx,
-	uint8_t keycode)
-{
-	switch (keycode) {
-
-	case KEY_T:
-		input_report_key(ctx->input_dev, KEY_TAB, 1);
-		input_report_key(ctx->input_dev, KEY_TAB, 0);
-		disable_meta_mode(ctx);
-		return;
-
-	case KEY_X:
-		transition_sticky_modifier(ctx, &sticky_ctrl, KEY_STATE_PRESSED);
-		transition_sticky_modifier(ctx, &sticky_ctrl, KEY_STATE_RELEASED);
-		disable_meta_mode(ctx);
-		return;
-
-	case KEY_C:
-		transition_sticky_modifier(ctx, &sticky_alt, KEY_STATE_PRESSED);
-		transition_sticky_modifier(ctx, &sticky_alt, KEY_STATE_RELEASED);
-		disable_meta_mode(ctx);
-		return;
-
-	case KEY_0:
-		invert_display(ctx);
-		disable_meta_mode(ctx);
-		return;
-
-	case KEY_COMPOSE:
-		// First click of Compose enters meta mode (already here)
-		// Second click of Compose enters touch keys mode.
-		// Subsequent clicks are Enter.
-		if (ctx->meta_touch_keys_mode) {
-			input_report_key(ctx->input_dev, KEY_ENTER, 1);
-			input_report_key(ctx->input_dev, KEY_ENTER, 0);
-
-		} else {
-			enable_meta_touch_keys_mode(ctx);
-		}
-		return;
-
-	case KEY_N: kbd_decrease_brightness(ctx); return;
-	case KEY_M: kbd_increase_brightness(ctx); return;
-	case KEY_MUTE:
-		kbd_toggle_brightness(ctx);
-		disable_meta_mode(ctx);
-		return;
-	}
-}
-
-// Called after checking "single function" meta mode keys,
-// These keys, both press and release events, will be sent to the input system
-static uint8_t map_repeatable_meta_mode_key(struct kbd_ctx* ctx, uint8_t keycode)
-{
-	switch (keycode) {
-
-	case KEY_E: return KEY_UP;
-	case KEY_S: return KEY_DOWN;
-	case KEY_W: return KEY_LEFT;
-	case KEY_D: return KEY_RIGHT;
-
-	case KEY_R: return KEY_HOME;
-	case KEY_F: return KEY_END;
-
-	case KEY_O: return KEY_PAGEUP;
-	case KEY_P: return KEY_PAGEDOWN;
-
-	case KEY_Q: return 172;
-	case KEY_A: return 173;
-	}
-
-	// No meta mode match, disable and return original key
-	disable_meta_mode(ctx);
-	return keycode;
 }
 
 // Main key event handler
@@ -602,9 +212,9 @@ static void report_key_input_event(struct kbd_ctx* ctx,
 		// Continue to normal input handling
 
 	// Compose key enters meta mode if touchpad not in arrow key mode
-	} else if (!ctx->meta_mode && (keycode == KEY_COMPOSE)) {
+	} else if (!ctx->meta_enabled && (keycode == KEY_COMPOSE)) {
 		if (ev->state == KEY_STATE_RELEASED) {
-			enable_meta_mode(ctx);
+			input_meta_enable(ctx);
 		}
 		return;
 
@@ -619,15 +229,15 @@ static void report_key_input_event(struct kbd_ctx* ctx,
 		return;
 
 	// Power key runs /sbin/poweroff if `handle_poweroff` is set
-	} else if (ctx->handle_poweroff && (keycode == KEY_POWER)) {
+	} else if (ctx->fw_handle_poweroff && (keycode == KEY_POWER)) {
 		if (ev->state == KEY_STATE_RELEASED) {
-			run_poweroff(ctx);
+			input_fw_run_poweroff(ctx);
 		}
 		return;
 	}
 
 	// Handle keys without modifiers in meta mode
-	if (!ctx->touchpad_always_keys && ctx->meta_mode) {
+	if (!ctx->touchpad_always_keys && ctx->meta_enabled) {
 
 		// Ignore modifier keys in meta mode
 		if ((keycode == KEY_LEFTSHIFT) || (keycode == KEY_RIGHTSHIFT)
@@ -639,21 +249,21 @@ static void report_key_input_event(struct kbd_ctx* ctx,
 		// Escape key exits meta mode
 		if (keycode == KEY_ESC) {
 			if (ev->state == KEY_STATE_RELEASED) {
-				disable_meta_mode(ctx);
+				input_meta_disable(ctx);
 			}
 			return;
 		}
 
 		// Handle function dispatch meta mode keys
-		if (is_single_function_meta_mode_key(ctx, keycode)) {
+		if (input_meta_is_single_function_key(ctx, keycode)) {
 			if (ev->state == KEY_STATE_RELEASED) {
-		 		run_single_function_meta_mode_key(ctx, keycode);
+		 		input_meta_run_single_function_key(ctx, keycode);
 			}
 			return;
 		}
 
 		// Remap to meta mode key
-		remapped_keycode = map_repeatable_meta_mode_key(ctx, keycode);
+		remapped_keycode = input_meta_map_repeatable_key(ctx, keycode);
 
 		// Input consumed by meta mode with no remmaped key
 		if (remapped_keycode == 0) {
@@ -665,7 +275,7 @@ static void report_key_input_event(struct kbd_ctx* ctx,
 
 		// If exited meta mode, simulate key up event. Otherwise, input system
 		// will have remapped key as in the down state
-		if (!ctx->meta_mode && (remapped_keycode != keycode)) {
+		if (!ctx->meta_enabled && (remapped_keycode != keycode)) {
 			input_report_key(ctx->input_dev, remapped_keycode, FALSE);
 		}
 
@@ -706,16 +316,21 @@ static void report_key_input_event(struct kbd_ctx* ctx,
 	}
 }
 
-static const struct rtc_class_ops beepy_rtc_ops = {
-	.read_time = i2c_read_time,
-	.set_time = i2c_set_time,
-};
+void input_send_control(struct kbd_ctx* ctx)
+{
+	transition_sticky_modifier(ctx, &sticky_ctrl, KEY_STATE_PRESSED);
+	transition_sticky_modifier(ctx, &sticky_ctrl, KEY_STATE_RELEASED);
+}
+
+void input_send_alt(struct kbd_ctx* ctx)
+{
+	transition_sticky_modifier(ctx, &sticky_alt, KEY_STATE_PRESSED);
+	transition_sticky_modifier(ctx, &sticky_alt, KEY_STATE_RELEASED);
+}
 
 int input_probe(struct i2c_client* i2c_client)
 {
 	int rc, i;
-	uint8_t reg_value;
-	struct rtc_device *rtc;
 
 	// Allocate keyboard context (managed by device lifetime)
 	g_ctx = devm_kzalloc(&i2c_client->dev, sizeof(*g_ctx), GFP_KERNEL);
@@ -732,13 +347,7 @@ int input_probe(struct i2c_client* i2c_client)
 
 	// Initialize keyboard context
 	g_ctx->i2c_client = i2c_client;
-	g_ctx->meta_mode = 0;
-	g_ctx->meta_touch_keys_mode = 0;
-	g_ctx->brightness = 0xFF;
-	g_ctx->last_brightness = 0xFF;
-	g_ctx->mono_invert = 0;
 	g_ctx->touchpad_always_keys = 0;
-	g_ctx->handle_poweroff = 0;
 
 	g_ctx->held_modifier_keys = 0;
 	g_ctx->pending_sticky_modifier_keys = 0;
@@ -788,36 +397,23 @@ int input_probe(struct i2c_client* i2c_client)
 	sticky_altgr.indicator_idx = 4;
 	sticky_altgr.indicator_char = 'g';
 
-	// Get firmware version
-	if (kbd_read_i2c_u8(i2c_client, REG_VER, &g_ctx->version_number)) {
-		return -ENODEV;
-	}
-	dev_info(&i2c_client->dev,
-		"%s BBQX0KBD Software version: 0x%02X\n", __func__,
-		g_ctx->version_number);
-
-	// Write configuration 1
-	if (kbd_write_i2c_u8(i2c_client, REG_CFG, REG_CFG_DEFAULT_SETTING)) {
-		return -ENODEV;
-	}
-
-	// Read back configuration 1 setting
-	if (kbd_read_i2c_u8(i2c_client, REG_CFG, &reg_value)) {
-		return -ENODEV;
-	}
-	dev_info_ld(&i2c_client->dev,
-		"%s Configuration Register Value: 0x%02X\n", __func__, reg_value);
-
-	// Read back configuration 2 setting
-	if (kbd_read_i2c_u8(i2c_client, REG_CF2, &reg_value)) {
+	// Run subsystem probes
+	if ((rc = input_fw_probe(i2c_client, g_ctx))) {
+		dev_err(&i2c_client->dev, "beepy-kbd: input_fw_probe failed\n");
 		return rc;
 	}
-	dev_info_ld(&i2c_client->dev,
-		"%s Configuration 2 Register Value: 0x%02X\n",
-		__func__, reg_value);
-
-	// Update keyboard brightness
-	(void)kbd_write_i2c_u8(i2c_client, REG_BKL, g_ctx->brightness);
+	if ((rc = input_rtc_probe(i2c_client, g_ctx))) {
+		dev_err(&i2c_client->dev, "beepy-kbd: input_rtc_probe failed\n");
+		return rc;
+	}
+	if ((rc = input_display_probe(i2c_client, g_ctx))) {
+		dev_err(&i2c_client->dev, "beepy-kbd: input_display_probe failed\n");
+		return rc;
+	}
+	if ((rc = input_meta_probe(i2c_client, g_ctx))) {
+		dev_err(&i2c_client->dev, "beepy-kbd: input_meta_probe failed\n");
+		return rc;
+	}
 
 	// Allocate input device
 	if ((g_ctx->input_dev = devm_input_allocate_device(&i2c_client->dev)) == NULL) {
@@ -873,42 +469,14 @@ int input_probe(struct i2c_client* i2c_client)
 		return rc;
 	}
 
-	// Register RTC device
-	rtc = devm_rtc_device_register(&i2c_client->dev,
-		"beepy-rtc", &beepy_rtc_ops, THIS_MODULE);
-	if (IS_ERR(rtc)) {
-		dev_err(&i2c_client->dev,
-			"Failed to register RTC device\n");
-		return PTR_ERR(rtc);
-	}
-
-	// Notify firmware that driver has initialized
-	// Clear boot indicator LED
-	(void)kbd_write_i2c_u8(i2c_client, REG_LED, 0);
-	(void)kbd_write_i2c_u8(i2c_client, REG_DRIVER_STATE, 1);
-
 	return 0;
 }
 
 void input_shutdown(struct i2c_client* i2c_client)
 {
-	uint8_t reg_value;
-
-	dev_info_fe(&i2c_client->dev,
-		"%s Shutting Down Keyboard And Screen Backlight.\n", __func__);
-
-	// Turn off LED and notify firmware that driver has shut down
-	(void)kbd_write_i2c_u8(i2c_client, REG_LED, 0);
-	(void)kbd_write_i2c_u8(i2c_client, REG_DRIVER_STATE, 0);
-
-	// Turn off backlight
-	(void)kbd_write_i2c_u8(i2c_client, REG_BKL, 0);
-
-	// Reenable touch events
-	(void)kbd_write_i2c_u8(i2c_client, REG_CF2, REG_CFG2_DEFAULT_SETTING);
-
-	// Read back version
-	(void)kbd_read_i2c_u8(i2c_client, REG_VER, &reg_value);
+	// Run subsystem shutdowns
+	input_fw_shutdown(i2c_client);
+	input_display_shutdown(i2c_client);
 
 	// Remove context from global state
 	// (It is freed by the device-specific memory mananger)
@@ -945,7 +513,7 @@ irqreturn_t input_irq_handler(int irq, void *param)
 
 	// Client reported a key event
 	if (irq_type & REG_INT_KEY) {
-		kbd_read_fifo(ctx);
+		input_fw_read_fifo(ctx);
 		schedule_work(&ctx->work_struct);
 	}
 
