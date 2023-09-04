@@ -1,8 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0 */
-/*
- * Keyboard Driver for Blackberry Keyboards BBQ10 from arturo182. Software written by wallComputer.
- * bbqX0kbd_i2cHelper.h: I2C Functions H file.
- */
+
 #ifndef I2C_HELPER_H_
 #define I2C_HELPER_H_
 

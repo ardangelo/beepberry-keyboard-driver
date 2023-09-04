@@ -213,7 +213,7 @@ int input_fw_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 
 	// Initialize keyboard context
 	ctx->fw_brightness = 0xFF;
-	ctx->fw_last_brightness = 0xFF;
+	ctx->fw_last_brightness = 0x00;
 	ctx->fw_handle_poweroff = 0;
 
 	// Get firmware version

@@ -17,7 +17,7 @@ static int i2c_set_time(struct device *dev, struct rtc_time *tm)
 		return rc;
 	}
 
-	printk(KERN_INFO "bbqX0kbd: updated RTC\n");
+	printk(KERN_INFO "beepy-kbd: updated RTC\n");
 
 	return 0;
 }

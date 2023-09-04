@@ -2,7 +2,7 @@
 /*
  * Keyboard Driver for Blackberry Keyboards BBQ10 from arturo182. Software written by wallComputer.
  * debug_levels.h: Describes the debug levels that can be set for viewing code flow in dmesg.
- * Use dmesg -wH | grep bbqX0 for easy viewing.
+ * Use dmesg -wH | grep beepy-kbd for easy viewing.
  */
 
 #ifndef DEBUG_LEVELS_H_
