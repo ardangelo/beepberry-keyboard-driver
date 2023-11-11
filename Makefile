@@ -4,10 +4,10 @@ beepy-kbd-objs += src/main.o src/params_iface.o src/sysfs_iface.o \
 	src/input_rtc.o
 ccflags-y := -DDEBUG -g -std=gnu99 -Wno-declaration-after-statement
 
-dtb-y += beepy-kbd.dtbo
+#dtb-y += beepy-kbd.dtbo
 
-targets += $(dtbo-y)
-always  := $(dtbo-y)
+#targets += $(dtbo-y)
+#always  := $(dtbo-y)
 
 .PHONY: all clean install install_modules install_aux uninstall
 
@@ -31,11 +31,11 @@ else
 	CONFIG=/boot/firmware/config.txt
 endif
 
+all: beepy-kbd.dtbo
+	$(MAKE) -C '$(LINUX_DIR)' M='$(shell pwd)'
+
 beepy-kbd.dtbo: beepy-kbd.dts
 	dtc -@ -I dts -O dtb -W no-unit_address_vs_reg -o $@ $<
-
-all:
-	$(MAKE) -C '$(LINUX_DIR)' M='$(shell pwd)'
 
 install_modules:
 	$(MAKE) -C '$(LINUX_DIR)' M='$(shell pwd)' modules_install
