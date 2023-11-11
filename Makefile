@@ -4,11 +4,6 @@ beepy-kbd-objs += src/main.o src/params_iface.o src/sysfs_iface.o \
 	src/input_rtc.o
 ccflags-y := -DDEBUG -g -std=gnu99 -Wno-declaration-after-statement
 
-#dtb-y += beepy-kbd.dtbo
-
-#targets += $(dtbo-y)
-#always  := $(dtbo-y)
-
 .PHONY: all clean install install_modules install_aux uninstall
 
 # LINUX_DIR is set by Buildroot, but not if running manually
@@ -56,7 +51,7 @@ install_aux: beepy-kbd.dtbo
 		|| printf '[all]\ndtparam=i2c_arm=on\n$(BOOT_CONFIG_LINE)\n' >> $(CONFIG)
 	# Add auto-load module line if it wasn't already there
 	grep -qxF 'beepy-kbd' /etc/modules \
-		|| printf 'i2c-dev\nbeepy-kbd' >> /etc/modules
+		|| printf 'i2c-dev\nbeepy-kbd\n' >> /etc/modules
 	# Configure keymap as default
 	grep -qxF '$(KMAP_LINE)' /etc/default/keyboard \
 		|| echo '$(KMAP_LINE)' >> /etc/default/keyboard
