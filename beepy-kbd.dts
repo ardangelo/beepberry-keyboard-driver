@@ -12,12 +12,14 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			beepy_kbd: beepy_kbd@1f {
+				#address-cells = <1>;
 				compatible = "beepy-kbd";
 				reg = <0x1F>;
 				irq-gpio = <&gpio 11 0x2>;
 				interrupts = <11 2>;
 				interrupt-parent = <&gpio>;
 				interrupt-controller;
+				#interrupt-cells = <1>;
 			};
 		};
 	};

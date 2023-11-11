@@ -6,7 +6,7 @@ ccflags-y := -DDEBUG -g -std=gnu99 -Wno-declaration-after-statement
 
 dtb-y += beepy-kbd.dtbo
 
-targets += $(dtbo-y)    
+targets += $(dtbo-y)
 always  := $(dtbo-y)
 
 .PHONY: all clean install install_modules install_aux uninstall
@@ -24,6 +24,16 @@ endif
 BOOT_CONFIG_LINE := dtoverlay=beepy-kbd,irq_pin=4
 KMAP_LINE := KMAP=/usr/share/kbd/keymaps/beepy-kbd.map
 
+# Raspbian 12 moved config and cmdline to firmware
+ifeq ($(wildcard /boot/firmware/config.txt),)
+	CONFIG=/boot/config.txt
+else
+	CONFIG=/boot/firmware/config.txt
+endif
+
+beepy-kbd.dtbo: beepy-kbd.dts
+	dtc -@ -I dts -O dtb -W no-unit_address_vs_reg -o $@ $<
+
 all:
 	$(MAKE) -C '$(LINUX_DIR)' M='$(shell pwd)'
 
@@ -35,18 +45,18 @@ install_modules:
 install: install_modules install_aux
 
 # Separate rule to be called from DKMS
-install_aux:
+install_aux: beepy-kbd.dtbo
 	# Install keymap
 	mkdir -p /usr/share/kbd/keymaps/
 	install -D -m 0644 $(BUILD_DIR)/beepy-kbd.map /usr/share/kbd/keymaps/
 	# Install device tree overlay
 	install -D -m 0644 $(BUILD_DIR)/beepy-kbd.dtbo /boot/overlays/
 	# Add configuration line if it wasn't already there
-	grep -qxF '$(BOOT_CONFIG_LINE)' /boot/config.txt \
-		|| printf '[all]\ndtparam=i2c_arm=on\n$(BOOT_CONFIG_LINE)\n' >> /boot/config.txt
+	grep -qxF '$(BOOT_CONFIG_LINE)' $(CONFIG) \
+		|| printf '[all]\ndtparam=i2c_arm=on\n$(BOOT_CONFIG_LINE)\n' >> $(CONFIG)
 	# Add auto-load module line if it wasn't already there
 	grep -qxF 'beepy-kbd' /etc/modules \
-		|| echo 'beepy-kbd' >> /etc/modules
+		|| printf 'i2c-dev\nbeepy-kbd' >> /etc/modules
 	# Configure keymap as default
 	grep -qxF '$(KMAP_LINE)' /etc/default/keyboard \
 		|| echo '$(KMAP_LINE)' >> /etc/default/keyboard
@@ -58,13 +68,13 @@ uninstall:
 	# Remove auto-load module line and create a backup file
 	sed -i.save '/beepy-kbd/d' /etc/modules
 	# Remove configuration line and create a backup file
-	sed -i.save '/$(BOOT_CONFIG_LINE)/d' /boot/config.txt
+	sed -i.save '/$(BOOT_CONFIG_LINE)/d' $(CONFIG)
 	# Remove device tree overlay
 	rm -f /boot/overlays/beepy-kbd.dtbo
 	# Remove keymap
 	rm -f /usr/share/kbd/keymaps/beepy-kbd.map
 	# Remove keymap setting
-	sed -i.save '/$(KMAP_LINE)/d' /etc/default/keyboard
+	sed -i.save '\|$(KMAP_LINE)|d' /etc/default/keyboard
 	rm -f /etc/console-setup/cached_setup_keyboard.sh
 	dpkg-reconfigure keyboard-configuration \
 		|| echo "dpkg-reconfigure failed, old keymap may not be applied"
