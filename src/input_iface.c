@@ -569,8 +569,8 @@ void input_workqueue_handler(struct work_struct *work_struct_ptr)
 		#if (BBQ20KBD_TRACKPAD_USE == BBQ20KBD_TRACKPAD_AS_MOUSE)
 
 			// Report mouse movement
-			input_report_rel(input_dev, REL_X, ctx->touch_rel_x);
-			input_report_rel(input_dev, REL_Y, ctx->touch_rel_y);
+			input_report_rel(ctx->input_dev, REL_X, ctx->touch_rel_x);
+			input_report_rel(ctx->input_dev, REL_Y, ctx->touch_rel_y);
 
 			// Clear touch interrupt flag
 			ctx->touch_event_flag = 0;
