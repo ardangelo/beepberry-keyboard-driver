@@ -35,18 +35,6 @@ static int read_raw_battery_level(void)
 	return (battery_level[1] << 8) | battery_level[0];
 }
 
-// Parse 0 to 255 from string
-static int parse_u8(char const* buf)
-{
-	int rc, result;
-
-	// Parse string value
-	if ((rc = kstrtoint(buf, 10, &result)) || (result < 0) || (result > 0xff)) {
-		return -EINVAL;
-	}
-	return result;
-}
-
 static int parse_and_write_i2c_u8(char const* buf, size_t count, uint8_t reg)
 {
 	int parsed;
@@ -169,28 +157,68 @@ static ssize_t __used keyboard_backlight_store(struct kobject *kobj,
 struct kobj_attribute keyboard_backlight_attr
 	= __ATTR(keyboard_backlight, 0220, NULL, keyboard_backlight_store);
 
+// Shutdown and rewake timer in minutes
+static ssize_t __used rewake_timer_store(struct kobject *kobj,
+	struct kobj_attribute *attr, char const *buf, size_t count)
+{
+	return parse_and_write_i2c_u8(buf, count, REG_REWAKE_MINS);
+}
+struct kobj_attribute rewake_timer_attr
+	= __ATTR(rewake_timer, 0220, NULL, rewake_timer_store);
+
+// Why the Pi was powered on
+static ssize_t startup_reason_show(struct kobject *kobj, struct kobj_attribute *attr,
+	char *buf)
+{
+	int rc;
+	uint8_t reason;
+
+	// Make sure I2C client was initialized
+	if ((g_ctx == NULL) || (g_ctx->i2c_client == NULL)) {
+		return -EINVAL;
+	}
+
+	// Read startup reason
+	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_STARTUP_REASON, &reason)) < 0) {
+		return rc;
+	}
+
+	switch (reason) {
+
+		case STARTUP_REASON_FW_INIT: return sprintf(buf, "fw_init");
+		case STARTUP_REASON_BUTTON: return sprintf(buf, "power_button");
+		case STARTUP_REASON_REWAKE: return sprintf(buf, "rewake");
+	}
+
+	return sprintf(buf, "unknown: %d", reason);
+}
+struct kobj_attribute startup_reason_attr
+	= __ATTR(startup_reason, 0444, startup_reason_show, NULL);
+
 // Sysfs attributes (entries)
 struct kobject *beepy_kobj = NULL;
 static struct attribute *beepy_attrs[] = {
-    &battery_raw_attr.attr,
+	&battery_raw_attr.attr,
 	&battery_volts_attr.attr,
 	&battery_percent_attr.attr,
 	&led_attr.attr,
 	&led_red_attr.attr,
 	&led_green_attr.attr,
 	&led_blue_attr.attr,
-	&keyboard_backlight_attr.attr,	
-    NULL,
+	&keyboard_backlight_attr.attr,
+	&rewake_timer_attr.attr,
+	&startup_reason_attr.attr,
+	NULL,
 };
 static struct attribute_group beepy_attr_group = {
-    .attrs = beepy_attrs
+	.attrs = beepy_attrs
 };
 
 int sysfs_probe(void)
 {
 	// Create sysfs entry for beepy
 	if ((beepy_kobj = kobject_create_and_add("beepy", firmware_kobj)) == NULL) {
-    	return -ENOMEM;
+		return -ENOMEM;
 	}
 
 	// Create sysfs attributes

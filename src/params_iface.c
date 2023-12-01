@@ -17,6 +17,7 @@
 // Kernel module parameters
 static char* touchpad_setting = "meta"; // Use meta mode by default
 static char* handle_poweroff_setting = "0"; // Enable to have module invoke poweroff
+static char* shutdown_grace_setting = "30"; // 30 seconds between shutdown signal and poweroff
 
 // Update touchpad setting in global context, if available
 static int set_touchpad_setting(struct kbd_ctx *ctx, char const* val)
@@ -109,6 +110,56 @@ static const struct kernel_param_ops handle_poweroff_setting_param_ops = {
 
 module_param_cb(handle_poweroff, &handle_poweroff_setting_param_ops, &handle_poweroff_setting, 0664);
 MODULE_PARM_DESC(handle_poweroff_setting, "Set to 1 to invoke /sbin/poweroff when power key is held");
+
+// Update shutdown grace time in firmware
+static int set_shutdown_grace_setting(struct kbd_ctx *ctx, char const* val)
+{
+	int parsed_val;
+
+	// If no state was passed, exit
+	if (!ctx) {
+		return 0;
+	}
+
+	// Parse setting
+	if ((parsed_val = parse_u8(val)) < 0) {
+		return parsed_val;
+	}
+
+	// Check setting (minimum 5 seconds)
+	if ((parsed_val < 5) || (parsed_val > 255)) {
+		return -EINVAL;
+	}
+
+	// Write setting to firmware
+	(void)kbd_write_i2c_u8(ctx->i2c_client, REG_SHUTDOWN_GRACE, (uint8_t)parsed_val);
+
+	return 0;
+}
+
+// Time between shutdown signal and power off in seconds
+static int shutdown_grace_param_set(const char *val, const struct kernel_param *kp)
+{
+	char *stripped_val;
+	char stripped_val_buf[4];
+
+	// Copy provided value to buffer and strip it of newlines
+	strncpy(stripped_val_buf, val, 4);
+	stripped_val_buf[3] = '\0';
+	stripped_val = strstrip(stripped_val_buf);
+
+	return (set_shutdown_grace_setting(g_ctx, stripped_val) < 0)
+		? -EINVAL
+		: param_set_charp(stripped_val, kp);
+}
+
+static const struct kernel_param_ops shutdown_grace_param_ops = {
+	.set = shutdown_grace_param_set,
+	.get = param_get_charp,
+};
+
+module_param_cb(shutdown_grace, &shutdown_grace_param_ops, &shutdown_grace_setting, 0664);
+MODULE_PARM_DESC(shutdown_grace_setting, "Set delay in seconds from shutdown signal to poweroff");
 
 // No setup
 int params_probe(void)

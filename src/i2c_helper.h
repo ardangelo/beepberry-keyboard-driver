@@ -9,6 +9,18 @@
 #include "registers.h"
 #include "debug_levels.h"
 
+// Parse 0 to 255 from string
+static inline int parse_u8(char const* buf)
+{
+	int rc, result;
+
+    // Parse string value
+	if ((rc = kstrtoint(buf, 10, &result)) || (result < 0) || (result > 0xff)) {
+		return -EINVAL;
+	}
+	return result;
+}
+
 // Read a single uint8_t value from I2C register
 static inline int kbd_read_i2c_u8(struct i2c_client* i2c_client, uint8_t reg_addr,
 	uint8_t* dst)

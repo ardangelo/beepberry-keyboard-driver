@@ -56,7 +56,9 @@ Adds the following sysfs entries under `/sys/firmware/beepy`:
 only.
 - `keyboard_backlight`: set keyboard brightness from 0 to 255. Write-only.
 - `battery_raw`: raw numerical battery level as reported by firmware. Read-only.
-- `battery_volts`: battery voltage estimation. Read-only
+- `battery_volts`: battery voltage estimation. Read-only.
+- `rewake_timer`: send a shutdown signal to the Pi and turn back on in this many minutes. Write-only.
+- `startup_reason`: cause of Pi boot (`fw_init`, `power_button`, `rewake`)
 
 Module parameters:
 
@@ -67,6 +69,12 @@ reload the module with `beepy-kbd param=val`.
   - `meta`: default, will use the touchpad button to enable or disable meta mode.
     See section below for how to use meta mode.
   - `keys`: touchpad always on, swiping sends arrow keys, clicking sends Enter.
+- `shutdown_grace`: numeric 5-255
+  - Wait this many seconds between a driver-initiated shutdown
+    and hard power off to the Pi.
+  - If greater than `rewake_timer`, a shutdown will not be triggered when
+    `rewake_timer` is written.
+  - Default: 30 seconds. Minimum: 5 seconds
 
 ### Meta mode
 

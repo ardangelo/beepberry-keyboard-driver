@@ -108,8 +108,8 @@
 #define REG_LED_G 						0x22
 #define REG_LED_B 						0x23
 
-#define REG_REWAKE_TIME 0x24
-#define REG_REWAKE 0x25
+#define REG_REWAKE_MINS 0x24
+#define REG_SHUTDOWN_GRACE 0x25
 
 #define REG_RTC_SEC 0x26
 #define REG_RTC_MIN 0x27
@@ -120,6 +120,11 @@
 #define REG_RTC_COMMIT 0x2C
 
 #define REG_DRIVER_STATE 0x2D
+
+#define REG_STARTUP_REASON 0x2E
+#define STARTUP_REASON_FW_INIT 0x1
+#define STARTUP_REASON_BUTTON 0x2
+#define STARTUP_REASON_REWAKE 0x3
 
 #endif
 
