@@ -58,7 +58,7 @@ only.
 - `battery_raw`: raw numerical battery level as reported by firmware. Read-only.
 - `battery_volts`: battery voltage estimation. Read-only.
 - `rewake_timer`: send a shutdown signal to the Pi and turn back on in this many minutes. Write-only.
-- `startup_reason`: cause of Pi boot (firmware init, power button, rewake timer)
+- `startup_reason`: cause of Pi boot (`fw_init`, `power_button`, `rewake`)
 
 Module parameters:
 

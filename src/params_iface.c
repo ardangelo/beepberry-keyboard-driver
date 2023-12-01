@@ -159,7 +159,7 @@ static const struct kernel_param_ops shutdown_grace_param_ops = {
 };
 
 module_param_cb(shutdown_grace, &shutdown_grace_param_ops, &shutdown_grace_setting, 0664);
-MODULE_PARM_DESC(shutdown_grace_setting, "Set to 1 to invoke /sbin/poweroff when power key is held");
+MODULE_PARM_DESC(shutdown_grace_setting, "Set delay in seconds from shutdown signal to poweroff");
 
 // No setup
 int params_probe(void)
