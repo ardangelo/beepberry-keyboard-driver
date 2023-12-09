@@ -195,6 +195,90 @@ static ssize_t startup_reason_show(struct kobject *kobj, struct kobj_attribute *
 struct kobj_attribute startup_reason_attr
 	= __ATTR(startup_reason, 0444, startup_reason_show, NULL);
 
+// Firmware update
+static ssize_t __used fw_update_store(struct kobject *kobj,
+	struct kobj_attribute *attr, char const *buf, size_t count)
+{
+	int rc;
+	size_t i;
+	uint8_t update_state;
+	char const* update_error = NULL;
+
+	// Write value to update
+	if (g_ctx && g_ctx->i2c_client) {
+
+		// Read update status
+		if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_UPDATE_DATA, &update_state)) < 0) {
+			return rc;
+		}
+
+		// Start a new update
+		if (update_state == UPDATE_OFF) {
+			dev_info(&g_ctx->i2c_client->dev,
+				"fw_update: starting new update, writing %zu bytes\n", count);
+
+		// In-progress update
+		} else if (update_state == UPDATE_RECV) {
+			dev_info(&g_ctx->i2c_client->dev,
+				"fw_update: writing %zu bytes\n", count);
+
+		// Previously failed update
+		} else {
+			dev_info(&g_ctx->i2c_client->dev,
+				"fw_update: update failed, resetting update state\n");
+			kbd_write_i2c_u8(g_ctx->i2c_client, REG_UPDATE_RESET, 1);
+			return -EAGAIN;
+		}
+
+		for (i = 0; i < count; i++) {
+			kbd_write_i2c_u8(g_ctx->i2c_client, REG_UPDATE_DATA, (uint8_t)buf[i]);
+		}
+
+		// Read update status
+		if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_UPDATE_DATA, &update_state)) < 0) {
+			return rc;
+		}
+
+		// Successful update
+		if (update_state == UPDATE_OFF) {
+			dev_info(&g_ctx->i2c_client->dev,
+				"fw_update: wrote %zu bytes, update completed\n", count);
+
+		// Update still in-progress
+		} else if (update_state == UPDATE_RECV) {
+			dev_info(&g_ctx->i2c_client->dev,
+				"fw_update: wrote %zu bytes\n", count);
+
+		// Update failed
+		} else if (update_state >= UPDATE_FAILED) {
+
+			update_error = "update failed";
+
+			switch (update_state) {
+			case UPDATE_FAILED_LINE_OVERFLOW:
+				update_error = "hex line too long"; break;
+			case UPDATE_FAILED_FLASH_EMPTY:
+				update_error = "flash image empty"; break;
+			case UPDATE_FAILED_FLASH_OVERFLOW:
+				update_error = "flash image > 64k"; break;
+			case UPDATE_FAILED_BAD_LINE:
+				update_error = "could not parse hex line"; break;
+			case UPDATE_FAILED_BAD_CHECKSUM:
+				update_error = "bad checksum"; break;
+			}
+
+			dev_info(&g_ctx->i2c_client->dev,
+				"fw_update: failed: %s\n", update_error);
+			kbd_write_i2c_u8(g_ctx->i2c_client, REG_UPDATE_RESET, 1);
+			return -EINVAL;
+		}
+	}
+
+	return count;
+}
+struct kobj_attribute fw_update_attr
+	= __ATTR(fw_update, 0220, NULL, fw_update_store);
+
 // Sysfs attributes (entries)
 struct kobject *beepy_kobj = NULL;
 static struct attribute *beepy_attrs[] = {
@@ -208,6 +292,7 @@ static struct attribute *beepy_attrs[] = {
 	&keyboard_backlight_attr.attr,
 	&rewake_timer_attr.attr,
 	&startup_reason_attr.attr,
+	&fw_update_attr.attr,
 	NULL,
 };
 static struct attribute_group beepy_attr_group = {
