@@ -225,8 +225,7 @@ static ssize_t __used fw_update_store(struct kobject *kobj,
 		// Previously failed update
 		} else {
 			dev_info(&g_ctx->i2c_client->dev,
-				"fw_update: update failed, resetting update state\n");
-			kbd_write_i2c_u8(g_ctx->i2c_client, REG_UPDATE_RESET, 1);
+				"fw_update: update failed\n");
 			return -EAGAIN;
 		}
 
@@ -269,7 +268,6 @@ static ssize_t __used fw_update_store(struct kobject *kobj,
 
 			dev_info(&g_ctx->i2c_client->dev,
 				"fw_update: failed: %s\n", update_error);
-			kbd_write_i2c_u8(g_ctx->i2c_client, REG_UPDATE_RESET, 1);
 			return -EINVAL;
 		}
 	}

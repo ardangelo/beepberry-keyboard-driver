@@ -59,6 +59,7 @@ only.
 - `battery_volts`: battery voltage estimation. Read-only.
 - `rewake_timer`: send a shutdown signal to the Pi and turn back on in this many minutes. Write-only.
 - `startup_reason`: cause of Pi boot (`fw_init`, `power_button`, `rewake`)
+- `fw_update`: flash a new second-stage firmware. Write-only.
 
 Module parameters:
 
@@ -97,6 +98,26 @@ meta mode until dismissed:
 - Esc: (Back button): exit meta mode
 
 Typing any other key while in meta mode will exit meta mode and send the key as if it was typed normally.
+
+### Firmware update
+
+Starting with Beepy firmware 3.0, firmware is loaded in two stages.
+
+The first stage is a modified version of [pico-flashloader](https://github.com/rhulme/pico-flashloader).
+It allows updates to be flashed to the second stage firmware while booted.
+
+The second stage is the actual Beepy firmware.
+
+Firmware updates are flashed by writing to `/sys/firmware/beepy/fw_update`:
+
+- Header line beginning with `+` e.g. `+Beepy`
+- Followed by the contents of an image in Intel HEX format
+
+If the update completes successfully, the system will be rebooted.
+There is a delay configurable at `/sys/firmware/beepy/shutdown_grace` to allow the operating system to cleanly shut down before the Pi is powered off.
+The firmware is flashed right before the Pi boots back up, so please wait until the system reboots on its own before removing power.
+
+If the update failed, an error will be returned and the firmware will not be modified. Check `dmesg | tail` for more information.
 
 ## Pre-requisites, Download, and Installation.
 

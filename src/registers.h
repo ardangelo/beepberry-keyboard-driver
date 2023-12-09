@@ -136,8 +136,6 @@
 #define UPDATE_FAILED_BAD_LINE 6
 #define UPDATE_FAILED_BAD_CHECKSUM 7
 
-#define REG_UPDATE_RESET 0x31
-
 #endif
 
 
