@@ -235,7 +235,7 @@ static ssize_t __used fw_update_store(struct kobject *kobj,
 		}
 
 		// Start a new update
-		if (update_state == UPDATE_OFF) {
+		if ((update_state == UPDATE_OFF) || (update_state >= UPDATE_FAILED)) {
 			dev_info(&g_ctx->i2c_client->dev,
 				"fw_update: starting new update, writing %zu bytes\n", count);
 
@@ -243,12 +243,6 @@ static ssize_t __used fw_update_store(struct kobject *kobj,
 		} else if (update_state == UPDATE_RECV) {
 			dev_info(&g_ctx->i2c_client->dev,
 				"fw_update: writing %zu bytes\n", count);
-
-		// Previously failed update
-		} else {
-			dev_info(&g_ctx->i2c_client->dev,
-				"fw_update: update failed\n");
-			return -EAGAIN;
 		}
 
 		for (i = 0; i < count; i++) {
