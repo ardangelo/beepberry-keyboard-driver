@@ -66,7 +66,7 @@ static ssize_t battery_raw_show(struct kobject *kobj, struct kobj_attribute *att
 	}
 
 	// Format into buffer
-	return sprintf(buf, "%d", total_level);
+	return sprintf(buf, "%d\n", total_level);
 }
 struct kobj_attribute battery_raw_attr
 	= __ATTR(battery_raw, 0444, battery_raw_show, NULL);
@@ -87,7 +87,7 @@ static ssize_t battery_volts_show(struct kobject *kobj, struct kobj_attribute *a
 	volts_fp /= 4095;
 
 	// Format into buffer
-	return sprintf(buf, "%d.%d", volts_fp / 100, volts_fp % 100);
+	return sprintf(buf, "%d.%d\n", volts_fp / 100, volts_fp % 100);
 }
 struct kobj_attribute battery_volts_attr
 	= __ATTR(battery_volts, 0444, battery_volts_show, NULL);
@@ -111,7 +111,7 @@ static ssize_t battery_percent_show(struct kobject *kobj, struct kobj_attribute 
 	percent -= 320;
 
 	// Format into buffer
-	return sprintf(buf, "%d", percent);
+	return sprintf(buf, "%d\n", percent);
 }
 struct kobj_attribute battery_percent_attr
 	= __ATTR(battery_percent, 0444, battery_percent_show, NULL);
@@ -183,7 +183,7 @@ static ssize_t fw_version_show(struct kobject *kobj, struct kobj_attribute *attr
 		return rc;
 	}
 
-	return sprintf(buf, "%d.%d", version >> 4, version & 0xf);
+	return sprintf(buf, "%d.%d\n", version >> 4, version & 0xf);
 }
 struct kobj_attribute fw_version_attr
 	= __ATTR(fw_version, 0444, fw_version_show, NULL);
@@ -207,12 +207,12 @@ static ssize_t startup_reason_show(struct kobject *kobj, struct kobj_attribute *
 
 	switch (reason) {
 
-		case STARTUP_REASON_FW_INIT: return sprintf(buf, "fw_init");
-		case STARTUP_REASON_BUTTON: return sprintf(buf, "power_button");
-		case STARTUP_REASON_REWAKE: return sprintf(buf, "rewake");
+		case STARTUP_REASON_FW_INIT: return sprintf(buf, "fw_init\n");
+		case STARTUP_REASON_BUTTON: return sprintf(buf, "power_button\n");
+		case STARTUP_REASON_REWAKE: return sprintf(buf, "rewake\n");
 	}
 
-	return sprintf(buf, "unknown: %d", reason);
+	return sprintf(buf, "unknown: %d\n", reason);
 }
 struct kobj_attribute startup_reason_attr
 	= __ATTR(startup_reason, 0444, startup_reason_show, NULL);
