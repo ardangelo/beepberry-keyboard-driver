@@ -166,6 +166,28 @@ static ssize_t __used rewake_timer_store(struct kobject *kobj,
 struct kobj_attribute rewake_timer_attr
 	= __ATTR(rewake_timer, 0220, NULL, rewake_timer_store);
 
+// Firmware version
+static ssize_t fw_version_show(struct kobject *kobj, struct kobj_attribute *attr,
+	char *buf)
+{
+	int rc;
+	uint8_t version;
+
+	// Make sure I2C client was initialized
+	if ((g_ctx == NULL) || (g_ctx->i2c_client == NULL)) {
+		return -EINVAL;
+	}
+
+	// Read firmware version
+	if ((rc = kbd_read_i2c_u8(g_ctx->i2c_client, REG_VER, &version)) < 0) {
+		return rc;
+	}
+
+	return sprintf(buf, "%d.%d", version >> 4, version & 0xf);
+}
+struct kobj_attribute fw_version_attr
+	= __ATTR(fw_version, 0444, fw_version_show, NULL);
+
 // Why the Pi was powered on
 static ssize_t startup_reason_show(struct kobject *kobj, struct kobj_attribute *attr,
 	char *buf)
@@ -290,6 +312,7 @@ static struct attribute *beepy_attrs[] = {
 	&keyboard_backlight_attr.attr,
 	&rewake_timer_attr.attr,
 	&startup_reason_attr.attr,
+	&fw_version_attr.attr,
 	&fw_update_attr.attr,
 	NULL,
 };
