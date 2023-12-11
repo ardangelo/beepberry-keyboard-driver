@@ -19,7 +19,7 @@ static int ioctl_call_int(char const* path, unsigned int cmd, int value)
 	struct file *filp;
 
 	// Open file
-    if (IS_ERR((filp = filp_open(path, O_WRONLY, 0)))) {
+	if (IS_ERR((filp = filp_open(path, O_WRONLY, 0)))) {
 		// Silently return if display driver was not loaded
 		return 0;
 	}
@@ -36,11 +36,11 @@ static int ioctl_call_int(char const* path, unsigned int cmd, int value)
 void input_display_invert(struct kbd_ctx* ctx)
 {
 	// Update saved invert value
-	ctx->display_mono_invert = (ctx->display_mono_invert) ? 0 : 1;
+	ctx->display.mono_invert = (ctx->display.mono_invert) ? 0 : 1;
 
 	// Write to parameter
 	(void)ioctl_call_int(SHARP_DEVICE_PATH, SHARP_IOCTQ_SET_INVERT,
-		(ctx->display_mono_invert) ? 1 : 0);
+		(ctx->display.mono_invert) ? 1 : 0);
 }
 
 // Clear display indicator
@@ -60,7 +60,7 @@ int input_display_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 {
 	int i;
 
-	ctx->display_mono_invert = 0;
+	ctx->display.mono_invert = 0;
 
 	// Clear all indicators
 	for (i = 0; i < 6; i++) {
@@ -70,7 +70,7 @@ int input_display_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 	return 0;
 }
 
-void input_display_shutdown(struct i2c_client* i2c_client)
+void input_display_shutdown(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 {
 	int i;
 

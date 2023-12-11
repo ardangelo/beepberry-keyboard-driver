@@ -1,7 +1,7 @@
 obj-m += beepy-kbd.o
 beepy-kbd-objs += src/main.o src/params_iface.o src/sysfs_iface.o \
-	src/input_iface.o src/input_meta.o src/input_display.o src/input_fw.o \
-	src/input_rtc.o
+	src/input_iface.o src/input_fw.o src/input_rtc.o src/input_display.o \
+	src/input_modifiers.o src/input_touch.o src/input_meta.o
 ccflags-y := -DDEBUG -g -std=gnu99 -Wno-declaration-after-statement
 
 .PHONY: all clean install install_modules install_aux uninstall
@@ -30,7 +30,7 @@ all: beepy-kbd.dtbo
 	$(MAKE) -C '$(LINUX_DIR)' M='$(shell pwd)'
 
 beepy-kbd.dtbo: beepy-kbd.dts
-	dtc -@ -I dts -O dtb -W no-unit_address_vs_reg -o $@ $<
+	echo dtc -@ -I dts -O dtb -W no-unit_address_vs_reg -o $@ $<
 
 install_modules:
 	$(MAKE) -C '$(LINUX_DIR)' M='$(shell pwd)' modules_install

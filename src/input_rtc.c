@@ -62,3 +62,6 @@ int input_rtc_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 
 	return 0;
 }
+
+void input_rtc_shutdown(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
+{}

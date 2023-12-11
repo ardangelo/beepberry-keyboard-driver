@@ -30,19 +30,16 @@ static int set_touchpad_setting(struct kbd_ctx *ctx, char const* val)
 
 	if (strncmp(val, "keys", 4) == 0) {
 
-		// Update global setting and enable touchpad interrupts
-		ctx->touchpad_always_keys = 1;
-		(void)kbd_write_i2c_u8(ctx->i2c_client, REG_CF2, REG_CF2_TOUCH_INT);
+		// Update global setting
+		input_touch_set_activation(ctx, TOUCH_ACT_ALWAYS);
+		input_touch_set_input_as(ctx, TOUCH_INPUT_AS_KEYS);
 
 		return 0;
 
 	} else if (strncmp(val, "meta", 4) == 0) {
 
-		// Update global setting and disable touchpad interrupts
-		// if meta mode does not have touch keys enabled
-		ctx->touchpad_always_keys = 0;
-		(void)kbd_write_i2c_u8(ctx->i2c_client, REG_CF2,
-			(ctx->meta_touch_keys_mode) ? REG_CF2_TOUCH_INT : 0);
+		input_touch_set_activation(ctx, TOUCH_ACT_META);
+		input_touch_set_input_as(ctx, TOUCH_INPUT_AS_KEYS);
 
 		return 0;
 	}
@@ -83,7 +80,7 @@ static int set_handle_poweroff_setting(struct kbd_ctx *ctx, char const* val)
 		return 0;
 	}
 
-	ctx->fw_handle_poweroff = (val[0] != '0');
+	ctx->fw.handle_poweroff = (val[0] != '0');
 	return 0;
 }
 
