@@ -22,7 +22,7 @@ struct kbd_ctx *g_ctx = NULL;
 
 // Main key event handler
 static void key_report_event(struct kbd_ctx* ctx,
-	struct fifo_item const* ev)
+	struct key_fifo_item const* ev)
 {
 	uint8_t keycode;
 
@@ -54,14 +54,22 @@ static void key_report_event(struct kbd_ctx* ctx,
 	}
 
 	// Subsystem key handling
-	if (input_touch_consumes_keycode(ctx, &keycode, keycode, ev->state)
-	 || input_fw_consumes_keycode(ctx, &keycode, keycode, ev->state)
+	if (input_fw_consumes_keycode(ctx, &keycode, keycode, ev->state)
+	 || input_modifiers_consumes_keycode(ctx, &keycode, keycode, ev->state)
 	 || input_meta_consumes_keycode(ctx, &keycode, keycode, ev->state)) {
 		return;
 	}
 
+	// Compose key sends enter if touchpad always active
+	if ((keycode == KEY_COMPOSE)
+	 && (ctx->touch.activation == TOUCH_ACT_ALWAYS)) {
+
+		keycode = KEY_ENTER;
+
+		// Continue to normal input handling
+
 	// Berry key sends Tmux prefix (Control + code 171 in keymap)
-	if (keycode == KEY_PROPS) {
+	} else if (keycode == KEY_PROPS) {
 		if (ev->state == KEY_STATE_PRESSED) {
 			input_report_key(ctx->input_dev, KEY_LEFTCTRL, TRUE);
 			input_report_key(ctx->input_dev, 171, TRUE);
@@ -150,12 +158,12 @@ static void input_workqueue_handler(struct work_struct *work_struct_ptr)
 	ctx = container_of(work_struct_ptr, struct kbd_ctx, work_struct);
 
 	// Process FIFO items
-	for (fifo_idx = 0; fifo_idx < ctx->fifo_count; fifo_idx++) {
-		key_report_event(ctx, &ctx->fifo_data[fifo_idx]);
+	for (fifo_idx = 0; fifo_idx < ctx->key_fifo_count; fifo_idx++) {
+		key_report_event(ctx, &ctx->key_fifo_data[fifo_idx]);
 	}
 
 	// Reset pending FIFO count
-	ctx->fifo_count = 0;
+	ctx->key_fifo_count = 0;
 
 	// Handle any pending touch events
 	if (ctx->raised_touch_event) {

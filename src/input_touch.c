@@ -26,33 +26,6 @@ int input_touch_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 void input_touch_shutdown(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 {}
 
-int input_touch_consumes_keycode(struct kbd_ctx* ctx,
-	uint8_t *remapped_keycode, uint8_t keycode, uint8_t state)
-{
-	// Compose key sends enter if touchpad always active
-	if ((keycode == KEY_COMPOSE)
-	    && (ctx->touch.activation == TOUCH_ACT_ALWAYS)) {
-
-		*remapped_keycode = KEY_ENTER;
-
-		// Continue to normal input handling
-		return 0;
-
-	// Compose key enters meta mode if not always enabled
-	} else if ((keycode == KEY_COMPOSE)
-		    && (ctx->touch.activation == TOUCH_ACT_META)
-		    && !ctx->meta.enabled) {
-
-		if (state == KEY_STATE_RELEASED) {
-			input_meta_enable(ctx);
-		}
-
-		return 1;
-	}
-
-	return 0;
-}
-
 void input_touch_report_event(struct kbd_ctx *ctx)
 {
 	dev_info_ld(&ctx->i2c_client->dev,

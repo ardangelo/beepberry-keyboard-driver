@@ -7,6 +7,11 @@
 
 #include "bbq20kbd_pmod_codes.h"
 
+// Globals
+static uint8_t g_brightness;
+static uint8_t g_last_brightness;
+static uint8_t g_handle_poweroff;
+
 // Helpers
 
 static void input_fw_run_poweroff(struct kbd_ctx* ctx)
@@ -29,9 +34,9 @@ int input_fw_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 	uint8_t reg_value;
 
 	// Initialize keyboard context
-	ctx->fw.brightness = 0xFF;
-	ctx->fw.last_brightness = 0x00;
-	ctx->fw.handle_poweroff = 0;
+	g_brightness = 0xFF;
+	g_last_brightness = 0x00;
+	g_handle_poweroff = 0;
 
 	// Get firmware version
 	if (kbd_read_i2c_u8(i2c_client, REG_VER, &ctx->version_number)) {
@@ -62,7 +67,7 @@ int input_fw_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 		__func__, reg_value);
 
 	// Update keyboard brightness
-	(void)kbd_write_i2c_u8(i2c_client, REG_BKL, ctx->fw.brightness);
+	(void)kbd_write_i2c_u8(i2c_client, REG_BKL, g_brightness);
 
 	// Notify firmware that driver has initialized
 	// Clear boot indicator LED
@@ -97,7 +102,7 @@ int input_fw_consumes_keycode(struct kbd_ctx* ctx,
 	uint8_t *remapped_keycode, uint8_t keycode, uint8_t state)
 {
 	// Power key runs /sbin/poweroff if `handle_poweroff` is set
-	if (ctx->fw.handle_poweroff && (keycode == KEY_POWER)) {
+	if (g_handle_poweroff && (keycode == KEY_POWER)) {
 		if (state == KEY_STATE_RELEASED) {
 			input_fw_run_poweroff(ctx);
 		}
@@ -112,38 +117,38 @@ int input_fw_consumes_keycode(struct kbd_ctx* ctx,
 void input_fw_decrease_brightness(struct kbd_ctx* ctx)
 {
 	// Decrease by delta, min at 0x0 brightness
-	ctx->fw.brightness = (ctx->fw.brightness < BBQ10_BRIGHTNESS_DELTA)
+	g_brightness = (g_brightness < BBQ10_BRIGHTNESS_DELTA)
 		? 0x0
-		: ctx->fw.brightness - BBQ10_BRIGHTNESS_DELTA;
+		: g_brightness - BBQ10_BRIGHTNESS_DELTA;
 
 	// Set backlight using I2C
-	(void)kbd_write_i2c_u8(ctx->i2c_client, REG_BKL, ctx->fw.brightness);
+	(void)kbd_write_i2c_u8(ctx->i2c_client, REG_BKL, g_brightness);
 }
 
 void input_fw_increase_brightness(struct kbd_ctx* ctx)
 {
 	// Increase by delta, max at 0xff brightness
-	ctx->fw.brightness = (ctx->fw.brightness > (0xff - BBQ10_BRIGHTNESS_DELTA))
+	g_brightness = (g_brightness > (0xff - BBQ10_BRIGHTNESS_DELTA))
 		? 0xff
-		: ctx->fw.brightness + BBQ10_BRIGHTNESS_DELTA;
+		: g_brightness + BBQ10_BRIGHTNESS_DELTA;
 
 	// Set backlight using I2C
-	(void)kbd_write_i2c_u8(ctx->i2c_client, REG_BKL, ctx->fw.brightness);
+	(void)kbd_write_i2c_u8(ctx->i2c_client, REG_BKL, g_brightness);
 }
 
 void input_fw_toggle_brightness(struct kbd_ctx* ctx)
 {
 	// Toggle, save last brightness in context
-	if (ctx->fw.last_brightness) {
-		ctx->fw.brightness = ctx->fw.last_brightness;
-		ctx->fw.last_brightness = 0;
+	if (g_last_brightness) {
+		g_brightness = g_last_brightness;
+		g_last_brightness = 0;
 	} else {
-		ctx->fw.last_brightness = ctx->fw.brightness;
-		ctx->fw.brightness = 0;
+		g_last_brightness = g_brightness;
+		g_brightness = 0;
 	}
 
 	// Set backlight using I2C
-	(void)kbd_write_i2c_u8(ctx->i2c_client, REG_BKL, ctx->fw.brightness);
+	(void)kbd_write_i2c_u8(ctx->i2c_client, REG_BKL, g_brightness);
 }
 
 // I2C helpers
@@ -203,17 +208,17 @@ void input_fw_read_fifo(struct kbd_ctx* ctx)
 	int rc;
 
 	// Read number of FIFO items
-	if (kbd_read_i2c_u8(ctx->i2c_client, REG_KEY, &ctx->fifo_count)) {
+	if (kbd_read_i2c_u8(ctx->i2c_client, REG_KEY, &ctx->key_fifo_count)) {
 		return;
 	}
-	ctx->fifo_count &= REG_KEY_KEYCOUNT_MASK;
+	ctx->key_fifo_count &= REG_KEY_KEYCOUNT_MASK;
 
 	// Read and transfer all FIFO items
-	for (fifo_idx = 0; fifo_idx < ctx->fifo_count; fifo_idx++) {
+	for (fifo_idx = 0; fifo_idx < ctx->key_fifo_count; fifo_idx++) {
 
 		// Read 2 fifo items
 		if ((rc = kbd_read_i2c_2u8(ctx->i2c_client, REG_FIF,
-			(uint8_t*)&ctx->fifo_data[fifo_idx]))) {
+			(uint8_t*)&ctx->key_fifo_data[fifo_idx]))) {
 
 			dev_err(&ctx->i2c_client->dev,
 				"%s Could not read REG_FIF, Error: %d\n", __func__, rc);
@@ -224,10 +229,10 @@ void input_fw_read_fifo(struct kbd_ctx* ctx)
 		dev_info_fe(&ctx->i2c_client->dev,
 			"%s %02d: 0x%02x%02x State %d Scancode %d\n",
 			__func__, fifo_idx,
-			((uint8_t*)&ctx->fifo_data[fifo_idx])[0],
-			((uint8_t*)&ctx->fifo_data[fifo_idx])[1],
-			ctx->fifo_data[fifo_idx].state,
-			ctx->fifo_data[fifo_idx].scancode);
+			((uint8_t*)&ctx->key_fifo_data[fifo_idx])[0],
+			((uint8_t*)&ctx->key_fifo_data[fifo_idx])[1],
+			ctx->key_fifo_data[fifo_idx].state,
+			ctx->key_fifo_data[fifo_idx].scancode);
 	}
 }
 
@@ -298,3 +303,7 @@ int input_fw_set_rtc(uint8_t year, uint8_t mon, uint8_t day,
 	return 0;
 }
 
+void input_fw_set_handle_poweroff(struct kbd_ctx* ctx, uint8_t handle_poweroff)
+{
+	g_handle_poweroff = handle_poweroff;
+}

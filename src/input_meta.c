@@ -6,7 +6,35 @@
 #include "config.h"
 #include "input_iface.h"
 
+// Globals
+
+static uint8_t g_enabled;
+
 // Meta mode helpers
+
+static void input_meta_enable(struct kbd_ctx* ctx)
+{
+	g_enabled = 1;
+
+	// Set display indicator
+	input_display_set_indicator(5, 'm');
+}
+
+static void input_meta_disable(struct kbd_ctx* ctx)
+{
+	g_enabled = 0;
+
+	// Clear display indicator
+	input_display_clear_indicator(5);
+
+
+	// Reset touch mode
+	if (ctx->touch.activation == TOUCH_ACT_META) {
+
+		// Disable touch interrupts on I2C
+		input_fw_disable_touch_interrupts(ctx);
+	}
+}
 
 // Called before checking "repeatable" meta mode keys,
 // These keys map to an internal driver function rather than another key
@@ -105,7 +133,7 @@ static uint8_t map_repeatable_key(struct kbd_ctx* ctx, uint8_t keycode)
 
 int input_meta_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 {
-	ctx->meta.enabled = 0;
+	g_enabled = 0;
 
 	return 0;
 }
@@ -118,8 +146,20 @@ int input_meta_consumes_keycode(struct kbd_ctx* ctx,
 {
 	uint8_t simulated_keycode;
 
-	if (!ctx->meta.enabled) {
+	if (!g_enabled) {
 		return 0;
+	}
+
+	// Compose key enters meta mode if not always enabled
+	if ((keycode == KEY_COMPOSE)
+	    && (ctx->touch.activation == TOUCH_ACT_META)
+	    && !g_enabled) {
+
+		if (state == KEY_STATE_RELEASED) {
+			input_meta_enable(ctx);
+		}
+
+		return 1;
 	}
 
 	// Ignore modifier keys in meta mode
@@ -159,33 +199,9 @@ int input_meta_consumes_keycode(struct kbd_ctx* ctx,
 
 	// If exited meta mode, simulate key up event. Otherwise, input system
 	// will have remapped key as in the down state
-	if (!ctx->meta.enabled && (simulated_keycode != keycode)) {
+	if (!g_enabled && (simulated_keycode != keycode)) {
 		input_report_key(ctx->input_dev, simulated_keycode, FALSE);
 	}
 
 	return 0;
-}
-
-void input_meta_enable(struct kbd_ctx* ctx)
-{
-	ctx->meta.enabled = 1;
-
-	// Set display indicator
-	input_display_set_indicator(5, 'm');
-}
-
-void input_meta_disable(struct kbd_ctx* ctx)
-{
-	ctx->meta.enabled = 0;
-
-	// Clear display indicator
-	input_display_clear_indicator(5);
-
-
-	// Reset touch mode
-	if (ctx->touch.activation == TOUCH_ACT_META) {
-
-		// Disable touch interrupts on I2C
-		input_fw_disable_touch_interrupts(ctx);
-	}
 }

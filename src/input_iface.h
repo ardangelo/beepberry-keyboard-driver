@@ -26,28 +26,12 @@ enum rp2040_key_state
 	KEY_STATE_RELEASED = 3,
 	KEY_STATE_LONG_HOLD = 4,
 };
-struct fifo_item
+struct key_fifo_item
 {
 	uint8_t scancode;
 
 	uint8_t _ : 4;
 	enum rp2040_key_state state : 4;
-};
-
-struct modifiers_ctx
-{
-	uint8_t active_modifiers;
-	uint8_t held_modifier_keys;
-	uint8_t pending_sticky_modifier_keys;
-	uint8_t sticky_modifier_keys;
-	uint8_t locked_modifier_keys;
-
-	uint8_t apply_phys_alt; // "Real" modifiers like
-	// Shift and Control are handled by simulating input key
-	// events. Since phys. alt is hardcoded, the state is here.
-	uint8_t current_phys_alt_keycode; // Store the last keycode
-	// sent in the phys. alt map to simulate a key up event
-	// when the key is released after phys. alt is released
 };
 
 struct touch_ctx
@@ -67,23 +51,6 @@ struct touch_ctx
 	int8_t rel_y;
 };
 
-struct meta_ctx
-{
-	uint8_t enabled;
-};
-
-struct fw_ctx
-{
-	uint8_t brightness;
-	uint8_t last_brightness;
-	uint8_t handle_poweroff;
-};
-
-struct display_ctx
-{
-	uint8_t mono_invert;
-};
-
 struct kbd_ctx
 {
 	struct work_struct work_struct;
@@ -95,18 +62,13 @@ struct kbd_ctx
 	// Map from input HID scancodes to Linux keycodes
 	uint8_t *keycode_map;
 
-	// Key state FIFO queue
-	uint8_t fifo_count;
-	struct fifo_item fifo_data[BBQX0KBD_FIFO_SIZE];
+	// Key state and touch FIFO queue
+	uint8_t key_fifo_count;
+	struct key_fifo_item key_fifo_data[BBQX0KBD_FIFO_SIZE];
+	uint8_t touch_fifo_count;
+	struct touch_fifo_item touch_fifo_data[BBQX0KBD_FIFO_SIZE];
 
-	// TODO: have touch event queue
-	uint8_t raised_touch_event;
-
-	struct modifiers_ctx modifiers;
 	struct touch_ctx touch;
-	struct meta_ctx meta;
-	struct fw_ctx fw;
-	struct display_ctx display;
 };
 
 // Shared global state for global interfaces such as sysfs
@@ -141,6 +103,8 @@ int input_fw_get_rtc(uint8_t* year, uint8_t* mon, uint8_t* day,
 int input_fw_set_rtc(uint8_t year, uint8_t mon, uint8_t day,
 	uint8_t hour, uint8_t min, uint8_t sec);
 
+void input_fw_set_handle_poweroff(struct kbd_ctx* ctx, uint8_t handle_poweroff);
+
 // RTC
 
 int input_rtc_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx);
@@ -150,9 +114,6 @@ void input_rtc_shutdown(struct i2c_client* i2c_client, struct kbd_ctx *ctx);
 
 int input_display_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx);
 void input_display_shutdown(struct i2c_client* i2c_client, struct kbd_ctx *ctx);
-
-int input_display_consumes_keycode(struct kbd_ctx* ctx,
-	uint8_t *remapped_keycode, uint8_t keycode, uint8_t state);
 
 void input_display_invert(struct kbd_ctx* ctx);
 
@@ -178,9 +139,6 @@ void input_modifiers_send_alt(struct kbd_ctx* ctx);
 int input_touch_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx);
 void input_touch_shutdown(struct i2c_client* i2c_client, struct kbd_ctx *ctx);
 
-int input_touch_consumes_keycode(struct kbd_ctx* ctx,
-	uint8_t *remapped_keycode, uint8_t keycode, uint8_t state);
-
 void input_touch_report_event(struct kbd_ctx *ctx);
 
 void input_touch_set_activation(struct kbd_ctx *ctx, uint8_t activation);
@@ -193,8 +151,5 @@ void input_meta_shutdown(struct i2c_client* i2c_client, struct kbd_ctx *ctx);
 
 int input_meta_consumes_keycode(struct kbd_ctx* ctx,
 	uint8_t *remapped_keycode, uint8_t keycode, uint8_t state);
-
-void input_meta_enable(struct kbd_ctx* ctx);
-void input_meta_disable(struct kbd_ctx* ctx);
 
 #endif
