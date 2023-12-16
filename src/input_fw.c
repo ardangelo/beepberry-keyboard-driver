@@ -63,7 +63,7 @@ int input_fw_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 	// based on module parameters
 	if (kbd_write_i2c_u8(i2c_client, REG_CF2, 0)) {
 		return -ENODEV;
-	}	
+	}
 
 	// Read back configuration 2 setting
 	if (kbd_read_i2c_u8(i2c_client, REG_CF2, &reg_value)) {

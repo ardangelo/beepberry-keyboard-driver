@@ -75,6 +75,7 @@ static irqreturn_t input_irq_handler(int irq, void *param)
 {
 	struct kbd_ctx *ctx;
 	uint8_t irq_type;
+	int8_t reg_value;
 
 	// `param` is current keyboard context as started in _probe
 	ctx = (struct kbd_ctx *)param;
@@ -109,14 +110,16 @@ static irqreturn_t input_irq_handler(int irq, void *param)
 	if (irq_type & REG_INT_TOUCH) {
 
 		// Read touch X-coordinate
-		if (kbd_read_i2c_u8(ctx->i2c_client, REG_TOX, &ctx->touch.rel_x)) {
+		if (kbd_read_i2c_u8(ctx->i2c_client, REG_TOX, &reg_value)) {
 			return IRQ_NONE;
 		}
+		ctx->touch.dx += reg_value;
 
 		// Read touch Y-coordinate
-		if (kbd_read_i2c_u8(ctx->i2c_client, REG_TOY, &ctx->touch.rel_y)) {
+		if (kbd_read_i2c_u8(ctx->i2c_client, REG_TOY, &reg_value)) {
 			return IRQ_NONE;
 		}
+		ctx->touch.dy += reg_value;
 
 		// Set touch event flag and schedule touch work
 		ctx->raised_touch_event = 1;
