@@ -30,9 +30,7 @@ static void input_meta_disable(struct kbd_ctx* ctx)
 
 	// Reset touch mode
 	if (ctx->touch.activation == TOUCH_ACT_META) {
-
-		// Disable touch interrupts on I2C
-		input_fw_disable_touch_interrupts(ctx);
+		input_touch_disable(ctx);
 	}
 }
 
@@ -146,20 +144,28 @@ int input_meta_consumes_keycode(struct kbd_ctx* ctx,
 {
 	uint8_t simulated_keycode;
 
-	if (!g_enabled) {
-		return 0;
-	}
-
 	// Compose key enters meta mode if not always enabled
 	if ((keycode == KEY_COMPOSE)
-	    && (ctx->touch.activation == TOUCH_ACT_META)
-	    && !g_enabled) {
+	 && (ctx->touch.activation == TOUCH_ACT_META)
+	 && (state == KEY_STATE_RELEASED)) {
 
-		if (state == KEY_STATE_RELEASED) {
+		// First press enters meta mode
+	    if (!g_enabled) {
 			input_meta_enable(ctx);
+
+		// Second press enters touch keys mode
+		} else if (!ctx->touch.enabled) {
+			input_touch_enable(ctx);
 		}
 
+		// Presses in touch mode are handled in input_iface main loop
+
 		return 1;
+	}
+
+	// Not in meta mode
+	if (!g_enabled) {
+		return 0;
 	}
 
 	// Ignore modifier keys in meta mode
@@ -188,7 +194,7 @@ int input_meta_consumes_keycode(struct kbd_ctx* ctx,
 	// Remap to meta mode key
 	simulated_keycode = map_repeatable_key(ctx, keycode);
 
-	// Input consumed by meta mode with no remmaped key
+	// Input consumed by meta mode with no remapped key
 	if (simulated_keycode == 0) {
 		return 1;
 	}
@@ -203,5 +209,5 @@ int input_meta_consumes_keycode(struct kbd_ctx* ctx,
 		input_report_key(ctx->input_dev, simulated_keycode, FALSE);
 	}
 
-	return 0;
+	return 1;
 }

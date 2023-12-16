@@ -53,16 +53,9 @@ static void key_report_event(struct kbd_ctx* ctx,
 		return;
 	}
 
-	// Subsystem key handling
-	if (input_fw_consumes_keycode(ctx, &keycode, keycode, ev->state)
-	 || input_modifiers_consumes_keycode(ctx, &keycode, keycode, ev->state)
-	 || input_meta_consumes_keycode(ctx, &keycode, keycode, ev->state)) {
-		return;
-	}
-
 	// Compose key sends enter if touchpad always active
 	if ((keycode == KEY_COMPOSE)
-	 && (ctx->touch.activation == TOUCH_ACT_ALWAYS)) {
+	 && ctx->touch.enabled) {
 
 		keycode = KEY_ENTER;
 
@@ -76,6 +69,13 @@ static void key_report_event(struct kbd_ctx* ctx,
 			input_report_key(ctx->input_dev, 171, FALSE);
 			input_report_key(ctx->input_dev, KEY_LEFTCTRL, FALSE);
 		}
+		return;
+	}
+
+	// Subsystem key handling
+	if (input_fw_consumes_keycode(ctx, &keycode, keycode, ev->state)
+	 || input_modifiers_consumes_keycode(ctx, &keycode, keycode, ev->state)
+	 || input_meta_consumes_keycode(ctx, &keycode, keycode, ev->state)) {
 		return;
 	}
 

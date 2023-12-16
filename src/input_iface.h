@@ -65,9 +65,8 @@ struct kbd_ctx
 	// Key state and touch FIFO queue
 	uint8_t key_fifo_count;
 	struct key_fifo_item key_fifo_data[BBQX0KBD_FIFO_SIZE];
-	uint8_t touch_fifo_count;
-	struct touch_fifo_item touch_fifo_data[BBQX0KBD_FIFO_SIZE];
 
+	uint8_t raised_touch_event;
 	struct touch_ctx touch;
 };
 
@@ -140,6 +139,9 @@ int input_touch_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx);
 void input_touch_shutdown(struct i2c_client* i2c_client, struct kbd_ctx *ctx);
 
 void input_touch_report_event(struct kbd_ctx *ctx);
+
+void input_touch_enable(struct kbd_ctx *ctx);
+void input_touch_disable(struct kbd_ctx *ctx);
 
 void input_touch_set_activation(struct kbd_ctx *ctx, uint8_t activation);
 void input_touch_set_input_as(struct kbd_ctx *ctx, uint8_t input_as);

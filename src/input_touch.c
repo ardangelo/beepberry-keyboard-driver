@@ -85,17 +85,27 @@ void input_touch_report_event(struct kbd_ctx *ctx)
 	#endif
 }
 
+void input_touch_enable(struct kbd_ctx *ctx)
+{
+	ctx->touch.enabled = 1;
+	input_fw_enable_touch_interrupts(ctx);
+}
+
+void input_touch_disable(struct kbd_ctx *ctx)
+{
+	ctx->touch.enabled = 0;
+	input_fw_disable_touch_interrupts(ctx);
+}
+
 void input_touch_set_activation(struct kbd_ctx *ctx, uint8_t activation)
 {
 	if (activation == TOUCH_ACT_ALWAYS) {
 		ctx->touch.activation = TOUCH_ACT_ALWAYS;
-		ctx->touch.enabled = 1;
-		input_fw_enable_touch_interrupts(ctx);
+		input_touch_enable(ctx);
 
 	} else if (activation == TOUCH_ACT_META) {
 		ctx->touch.activation = TOUCH_ACT_META;
-		ctx->touch.enabled = 0;
-		input_fw_disable_touch_interrupts(ctx);
+		input_touch_disable(ctx);
 	}
 }
 

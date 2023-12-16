@@ -52,14 +52,12 @@ static void beepy_kbd_shutdown(struct i2c_client* i2c_client)
 	input_shutdown(i2c_client);
 }
 
-static int beepy_kbd_remove(struct i2c_client* i2c_client)
+static void beepy_kbd_remove(struct i2c_client* i2c_client)
 {
 	dev_info_fe(&i2c_client->dev,
 		"%s Removing beepy-kbd.\n", __func__);
 
 	beepy_kbd_shutdown(i2c_client);
-
-	return 0;
 }
 
 // Driver definitions
