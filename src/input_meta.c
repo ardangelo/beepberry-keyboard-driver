@@ -9,31 +9,6 @@
 // Globals
 
 static uint8_t g_enabled;
-static uint8_t g_meta_key = KEY_COMPOSE;
-
-// Meta mode helpers
-
-static void input_meta_enable(struct kbd_ctx* ctx)
-{
-	g_enabled = 1;
-
-	// Set display indicator
-	input_display_set_indicator(5, 'm');
-}
-
-static void input_meta_disable(struct kbd_ctx* ctx)
-{
-	g_enabled = 0;
-
-	// Clear display indicator
-	input_display_clear_indicator(5);
-
-
-	// Reset touch mode
-	if (ctx->touch.activation == TOUCH_ACT_META) {
-		input_touch_disable(ctx);
-	}
-}
 
 // Called before checking "repeatable" meta mode keys,
 // These keys map to an internal driver function rather than another key
@@ -83,16 +58,8 @@ static void run_single_function_key(struct kbd_ctx* ctx, uint8_t keycode)
 	case KEY_COMPOSE:
 		// First click of Compose enters meta mode (already here)
 		// Second click of Compose enters touch keys mode.
-		// Subsequent clicks are Enter.
-		if (ctx->touch.enabled) {
-			input_report_key(ctx->input_dev, KEY_ENTER, 1);
-			input_report_key(ctx->input_dev, KEY_ENTER, 0);
-
-		} else if (ctx->touch.activation == TOUCH_ACT_META) {
-
-			// Enable touch interrupts on I2C
-			input_fw_enable_touch_interrupts(ctx);
-		}
+		// After touch is enabled, touchpad click will be consumed by touch handler
+		input_touch_enable(ctx);
 		return;
 
 	case KEY_N: input_fw_decrease_brightness(ctx); return;
@@ -145,27 +112,14 @@ int input_meta_consumes_keycode(struct kbd_ctx* ctx,
 {
 	uint8_t simulated_keycode;
 
-	// Compose key enters meta mode if not always enabled
-	if ((keycode == g_meta_key)
-	 && (ctx->touch.activation == TOUCH_ACT_META)
-	 && (state == KEY_STATE_RELEASED)) {
-
-		// First press enters meta mode
-	    if (!g_enabled) {
-			input_meta_enable(ctx);
-
-		// Second press enters touch keys mode
-		} else if (!ctx->touch.enabled) {
-			input_touch_enable(ctx);
-		}
-
-		// Presses in touch mode are handled in input_iface main loop
-
-		return 1;
-	}
-
 	// Not in meta mode
 	if (!g_enabled) {
+
+		if ((keycode == KEY_COMPOSE) && (state == KEY_STATE_RELEASED)) {
+			input_meta_enable(ctx);
+			return 1;
+		}
+
 		return 0;
 	}
 
@@ -213,7 +167,23 @@ int input_meta_consumes_keycode(struct kbd_ctx* ctx,
 	return 1;
 }
 
-void input_meta_set_key(struct kbd_ctx* ctx, uint8_t keycode)
+void input_meta_enable(struct kbd_ctx* ctx)
 {
-	g_meta_key = keycode;
+	g_enabled = 1;
+
+	// Set display indicator
+	input_display_set_indicator(5, 'm');
+}
+
+void input_meta_disable(struct kbd_ctx* ctx)
+{
+	g_enabled = 0;
+
+	// Clear display indicator
+	input_display_clear_indicator(5);
+
+	// Reset touch mode
+	if (ctx->touch.activation == TOUCH_ACT_META) {
+		input_touch_disable(ctx);
+	}
 }

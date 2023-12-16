@@ -69,6 +69,60 @@ void input_touch_report_event(struct kbd_ctx *ctx)
 	}
 }
 
+// Touch enabled: touchpad click sends enter / mouse click
+// Touch disabled: touchpad click enters meta mode
+int input_touch_consumes_keycode(struct kbd_ctx* ctx,
+	uint8_t *remapped_keycode, uint8_t keycode, uint8_t state)
+{
+	// Touchpad click
+	// Touch off: enable meta mode
+	// Touch on: enter or mouse click
+	if (keycode == KEY_COMPOSE) {
+
+		if (ctx->touch.enabled) {
+
+			// Keys mode, send enter
+			if ((ctx->touch.input_as == TOUCH_INPUT_AS_KEYS)
+			 && (state == KEY_STATE_RELEASED)) {
+				input_report_key(ctx->input_dev, KEY_ENTER, TRUE);
+				input_report_key(ctx->input_dev, KEY_ENTER, FALSE);
+
+			// Mouse mode, send mouse click
+			} else if (ctx->touch.input_as == TOUCH_INPUT_AS_MOUSE) {
+				// TODO: mouse click
+			}
+
+			return 1;
+		}
+
+		// If touch off, touchpad click will be handled by meta handler
+
+	// Berry key
+	// Touch off: sends Tmux prefix (Control + code 171 in keymap)
+	// Touch on: enable meta mode
+	} else if (keycode == KEY_PROPS) {
+
+		if (state == KEY_STATE_RELEASED) {
+
+			// Send Tmux prefix
+			if (!ctx->touch.enabled) {
+				input_report_key(ctx->input_dev, KEY_LEFTCTRL, TRUE);
+				input_report_key(ctx->input_dev, 171, TRUE);
+				input_report_key(ctx->input_dev, 171, FALSE);
+				input_report_key(ctx->input_dev, KEY_LEFTCTRL, FALSE);
+
+			// Enable meta mode
+			} else {
+				input_meta_enable(ctx);
+			}
+		}
+
+		return 1;
+	}
+
+	return 0;
+}
+
 void input_touch_enable(struct kbd_ctx *ctx)
 {
 	ctx->touch.enabled = 1;

@@ -140,6 +140,9 @@ void input_touch_shutdown(struct i2c_client* i2c_client, struct kbd_ctx *ctx);
 
 void input_touch_report_event(struct kbd_ctx *ctx);
 
+int input_touch_consumes_keycode(struct kbd_ctx* ctx,
+	uint8_t *remapped_keycode, uint8_t keycode, uint8_t state);
+
 void input_touch_enable(struct kbd_ctx *ctx);
 void input_touch_disable(struct kbd_ctx *ctx);
 
@@ -154,6 +157,7 @@ void input_meta_shutdown(struct i2c_client* i2c_client, struct kbd_ctx *ctx);
 int input_meta_consumes_keycode(struct kbd_ctx* ctx,
 	uint8_t *remapped_keycode, uint8_t keycode, uint8_t state);
 
-void input_meta_set_key(struct kbd_ctx* ctx, uint8_t keycode);
+void input_meta_enable(struct kbd_ctx* ctx);
+void input_meta_disable(struct kbd_ctx* ctx);
 
 #endif
