@@ -58,6 +58,13 @@ int input_fw_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 	dev_info_ld(&i2c_client->dev,
 		"%s Configuration Register Value: 0x%02X\n", __func__, reg_value);
 
+	// Write configuration 2
+	// No USB output and disable touch. Touch settings will be updated later
+	// based on module parameters
+	if (kbd_write_i2c_u8(i2c_client, REG_CF2, 0)) {
+		return -ENODEV;
+	}	
+
 	// Read back configuration 2 setting
 	if (kbd_read_i2c_u8(i2c_client, REG_CF2, &reg_value)) {
 		return rc;

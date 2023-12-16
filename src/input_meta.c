@@ -9,6 +9,7 @@
 // Globals
 
 static uint8_t g_enabled;
+static uint8_t g_meta_key = KEY_COMPOSE;
 
 // Meta mode helpers
 
@@ -145,7 +146,7 @@ int input_meta_consumes_keycode(struct kbd_ctx* ctx,
 	uint8_t simulated_keycode;
 
 	// Compose key enters meta mode if not always enabled
-	if ((keycode == KEY_COMPOSE)
+	if ((keycode == g_meta_key)
 	 && (ctx->touch.activation == TOUCH_ACT_META)
 	 && (state == KEY_STATE_RELEASED)) {
 
@@ -210,4 +211,9 @@ int input_meta_consumes_keycode(struct kbd_ctx* ctx,
 	}
 
 	return 1;
+}
+
+void input_meta_set_key(struct kbd_ctx* ctx, uint8_t keycode)
+{
+	g_meta_key = keycode;
 }

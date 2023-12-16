@@ -28,22 +28,22 @@ void input_touch_shutdown(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 
 void input_touch_report_event(struct kbd_ctx *ctx)
 {
+	if (!ctx || !ctx->touch.enabled) {
+		return;
+	}
+
 	dev_info_ld(&ctx->i2c_client->dev,
 		"%s X Reg: %d Y Reg: %d.\n",
 		__func__, ctx->touch.rel_x, ctx->touch.rel_y);
 
-	#if (BBQ20KBD_TRACKPAD_USE == BBQ20KBD_TRACKPAD_AS_MOUSE)
+	// Report mouse movement
+	if (ctx->touch.input_as == TOUCH_INPUT_AS_MOUSE) {
+#if 0
+		input_report_mouse(ctx->input_dev, ctx->touch.rel_x, ctx->touch.rel_y);
+#endif
 
-		// Report mouse movement
-		input_report_rel(input_dev, REL_X, ctx->touch.rel_x);
-		input_report_rel(input_dev, REL_Y, ctx->touch.rel_y);
-
-	#endif
-
-	#if (BBQ20KBD_TRACKPAD_USE == BBQ20KBD_TRACKPAD_AS_KEYS)
-
-	// Touchpad-as-keys mode will always use the touchpad as arrow keys
-	if (ctx->touch.activation == TOUCH_ACT_ALWAYS) {
+	// Report arrow key movement
+	} else if (ctx->touch.input_as == TOUCH_INPUT_AS_KEYS) {
 
 		// Negative X: left arrow key
 		if (ctx->touch.rel_x < -4) {
@@ -66,23 +66,7 @@ void input_touch_report_event(struct kbd_ctx *ctx)
 			input_report_key(ctx->input_dev, KEY_DOWN, TRUE);
 			input_report_key(ctx->input_dev, KEY_DOWN, FALSE);
 		}
-
-	// Meta touch keys will only send up/down keys when enabled
-	} else if ((ctx->touch.activation == TOUCH_ACT_META)
-	        && ctx->touch.enabled) {
-
-		// Negative Y: up arrow key
-		if (ctx->touch.rel_y < -4) {
-			input_report_key(ctx->input_dev, KEY_UP, TRUE);
-			input_report_key(ctx->input_dev, KEY_UP, FALSE);
-
-		// Positive Y: down arrow key
-		} else if (ctx->touch.rel_y > 4) {
-			input_report_key(ctx->input_dev, KEY_DOWN, TRUE);
-			input_report_key(ctx->input_dev, KEY_DOWN, FALSE);
-		}
 	}
-	#endif
 }
 
 void input_touch_enable(struct kbd_ctx *ctx)

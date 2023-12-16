@@ -167,7 +167,7 @@ static void input_workqueue_handler(struct work_struct *work_struct_ptr)
 
 	// Handle any pending touch events
 	if (ctx->raised_touch_event) {
-		input_touch_report_event(g_ctx);
+		input_touch_report_event(ctx);
 		ctx->raised_touch_event = 0;
 	}
 

@@ -15,12 +15,13 @@
 #include "params_iface.h"
 
 // Kernel module parameters
-static char* touchpad_setting = "meta"; // Use meta mode by default
+static char* touch_act_setting = "meta"; // "meta" or "always"
+static char* touch_as_setting = "keys"; // "keys" or "mouse"
 static char* handle_poweroff_setting = "0"; // Enable to have module invoke poweroff
 static char* shutdown_grace_setting = "30"; // 30 seconds between shutdown signal and poweroff
 
-// Update touchpad setting in global context, if available
-static int set_touchpad_setting(struct kbd_ctx *ctx, char const* val)
+// Update touchpad activation setting in global context, if available
+static int set_touch_act_setting(struct kbd_ctx* ctx, char const* val)
 {
 	// If no state was passed, just update the local setting without
 	// changing I2C touch interrupts
@@ -28,19 +29,14 @@ static int set_touchpad_setting(struct kbd_ctx *ctx, char const* val)
 		return 0;
 	}
 
-	if (strncmp(val, "keys", 4) == 0) {
-
-		// Update global setting
-		input_touch_set_activation(ctx, TOUCH_ACT_ALWAYS);
-		input_touch_set_input_as(ctx, TOUCH_INPUT_AS_KEYS);
-
+	// Touchpad only active when clicking in meta mode
+	if (strcmp(val, "meta") == 0) {
+		input_touch_set_activation(ctx, TOUCH_ACT_META);
 		return 0;
 
-	} else if (strncmp(val, "meta", 4) == 0) {
-
-		input_touch_set_activation(ctx, TOUCH_ACT_META);
-		input_touch_set_input_as(ctx, TOUCH_INPUT_AS_KEYS);
-
+	// Touchpad always active
+	} else if (strcmp(val, "always") == 0) {
+		input_touch_set_activation(ctx, TOUCH_ACT_ALWAYS);
 		return 0;
 	}
 
@@ -48,29 +44,77 @@ static int set_touchpad_setting(struct kbd_ctx *ctx, char const* val)
 	return -1;
 }
 
-// Use touchpad for meta mode, or use it as arrow keys
-static int touchpad_setting_param_set(const char *val, const struct kernel_param *kp)
+// Copy provided value to buffer and strip it of newlines
+static char* copy_and_strip(char* buf, size_t buf_len, const char* val)
 {
+	strncpy(buf, val, buf_len - 1);
+	buf[buf_len - 1] = '\0';
+	return strstrip(buf);
+}
+
+// Activate touch when clicking in meta mode, or always enabled
+static int touch_act_setting_param_set(const char *val, const struct kernel_param* kp)
+{
+	char buf[8];
 	char *stripped_val;
-	char stripped_val_buf[5];
 
-	// Copy provided value to buffer and strip it of newlines
-	strncpy(stripped_val_buf, val, 5);
-	stripped_val_buf[4] = '\0';
-	stripped_val = strstrip(stripped_val_buf);
+	stripped_val = copy_and_strip(buf, sizeof(buf), val);
 
-	return (set_touchpad_setting(g_ctx, stripped_val) < 0)
+	return (set_touch_act_setting(g_ctx, stripped_val) < 0)
 		? -EINVAL
 		: param_set_charp(stripped_val, kp);
 }
 
-static const struct kernel_param_ops touchpad_setting_param_ops = {
-	.set = touchpad_setting_param_set,
+static const struct kernel_param_ops touch_act_setting_param_ops = {
+	.set = touch_act_setting_param_set,
 	.get = param_get_charp,
 };
+module_param_cb(touch_act, &touch_act_setting_param_ops, &touch_act_setting, 0664);
+MODULE_PARM_DESC(touch_act_setting, "Touchpad enabled after clicking in meta mode (\"meta\") or always enabled (\"always\")");
 
-module_param_cb(touchpad, &touchpad_setting_param_ops, &touchpad_setting, 0664);
-MODULE_PARM_DESC(touchpad_setting, "Touchpad as arrow keys (\"keys\") or click for meta mode (\"meta\")");
+// Update touchpad mode setting in global context, if available
+static int set_touch_as_setting(struct kbd_ctx* ctx, char const* val)
+{
+	// If no state was passed, just update the local setting without
+	// changing I2C touch interrupts
+	if (!ctx) {
+		return 0;
+	}
+
+	// Touchpad sends arrow keys
+	if (strcmp(val, "keys") == 0) {
+		input_touch_set_input_as(ctx, TOUCH_INPUT_AS_KEYS);
+		return 0;
+
+	// Touchpad sends mouse
+	} else if (strcmp(val, "mouse") == 0) {
+		input_touch_set_input_as(ctx, TOUCH_INPUT_AS_MOUSE);
+		return 0;
+	}
+
+	// Invalid parameter value
+	return -1;
+}
+
+// Touchpad sends arrow keys or mouse
+static int touch_as_setting_param_set(const char *val, const struct kernel_param* kp)
+{
+	char buf[8];
+	char *stripped_val;
+
+	stripped_val = copy_and_strip(buf, sizeof(buf), val);
+
+	return (set_touch_as_setting(g_ctx, stripped_val) < 0)
+		? -EINVAL
+		: param_set_charp(stripped_val, kp);
+}
+
+static const struct kernel_param_ops touch_as_setting_param_ops = {
+	.set = touch_as_setting_param_set,
+	.get = param_get_charp,
+};
+module_param_cb(touch_as, &touch_as_setting_param_ops, &touch_as_setting, 0664);
+MODULE_PARM_DESC(touch_as_setting, "Touchpad sends arrow keys (\"keys\") or mouse (\"mouse\")");
 
 // Update poweroff setting in global context, if available
 static int set_handle_poweroff_setting(struct kbd_ctx *ctx, char const* val)
@@ -163,8 +207,11 @@ int params_probe(void)
 {
 	int rc;
 
-	// Set initial touchpad setting based on module's parameter
-	if ((rc = set_touchpad_setting(g_ctx, touchpad_setting)) < 0) {
+	// Set initial touchpad settings based on module's parameter
+	if ((rc = set_touch_act_setting(g_ctx, touch_act_setting)) < 0) {
+		return rc;
+	}
+	if ((rc = set_touch_as_setting(g_ctx, touch_as_setting)) < 0) {
 		return rc;
 	}
 
