@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 // Input firmware subsystem
 
+#include <linux/input.h>
+
 #include "config.h"
 #include "i2c_helper.h"
 #include "input_iface.h"
@@ -109,10 +111,19 @@ int input_fw_consumes_keycode(struct kbd_ctx* ctx,
 	uint8_t *remapped_keycode, uint8_t keycode, uint8_t state)
 {
 	// Power key runs /sbin/poweroff if `handle_poweroff` is set
-	if (g_handle_poweroff && (keycode == KEY_POWER)) {
-		if (state == KEY_STATE_RELEASED) {
+	if (keycode == KEY_POWER) {
+
+		if ((state == KEY_STATE_LONG_HOLD) && (g_handle_poweroff)) {
 			input_fw_run_poweroff(ctx);
+
+		// Pressing power button sends Tmux prefix (Control + code 171 in keymap)
+		} else if (state == KEY_STATE_RELEASED) {
+			input_report_key(ctx->input_dev, KEY_LEFTCTRL, TRUE);
+			input_report_key(ctx->input_dev, 171, TRUE);
+			input_report_key(ctx->input_dev, 171, FALSE);
+			input_report_key(ctx->input_dev, KEY_LEFTCTRL, FALSE);
 		}
+
 		return 1;
 	}
 

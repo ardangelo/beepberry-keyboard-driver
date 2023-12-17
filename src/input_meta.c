@@ -24,7 +24,6 @@ static bool is_single_function_key(struct kbd_ctx* ctx, uint8_t keycode)
 	case KEY_M: return TRUE; // Increase brightness
 	case KEY_MUTE: return TRUE; // Toggle brightness
 	case KEY_0: return TRUE; // Invert display
-	case KEY_COMPOSE: return TRUE; // Turn on touch keys mode
 	}
 
 	return FALSE;
@@ -53,13 +52,6 @@ static void run_single_function_key(struct kbd_ctx* ctx, uint8_t keycode)
 	case KEY_0:
 		input_display_invert(ctx);
 		input_meta_disable(ctx);
-		return;
-
-	case KEY_COMPOSE:
-		// First click of Compose enters meta mode (already here)
-		// Second click of Compose enters touch keys mode.
-		// After touch is enabled, touchpad click will be consumed by touch handler
-		input_touch_enable(ctx);
 		return;
 
 	case KEY_N: input_fw_decrease_brightness(ctx); return;
@@ -115,8 +107,11 @@ int input_meta_consumes_keycode(struct kbd_ctx* ctx,
 	// Not in meta mode
 	if (!g_enabled) {
 
-		if ((keycode == KEY_COMPOSE) && (state == KEY_STATE_RELEASED)) {
-			input_meta_enable(ctx);
+		// Berry key enables meta mode
+		if (keycode == KEY_PROPS) {
+			if (state == KEY_STATE_RELEASED) {
+				input_meta_enable(ctx);
+			}
 			return 1;
 		}
 
@@ -130,8 +125,8 @@ int input_meta_consumes_keycode(struct kbd_ctx* ctx,
 		return 1;
 	}
 
-	// Escape key exits meta mode
-	if (keycode == KEY_ESC) {
+	// Berry or Back key exits meta mode
+	if ((keycode == KEY_ESC) || (keycode == KEY_PROPS)) {
 		if (state == KEY_STATE_RELEASED) {
 			input_meta_disable(ctx);
 		}
@@ -181,9 +176,4 @@ void input_meta_disable(struct kbd_ctx* ctx)
 
 	// Clear display indicator
 	input_display_clear_indicator(5);
-
-	// Reset touch mode
-	if (ctx->touch.activation == TOUCH_ACT_META) {
-		input_touch_disable(ctx);
-	}
 }

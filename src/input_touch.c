@@ -15,16 +15,23 @@
 
 int input_touch_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 {
-	ctx->touch.activation = TOUCH_ACT_META;
+	ctx->touch.activation = TOUCH_ACT_CLICK;
 	ctx->touch.input_as = TOUCH_INPUT_AS_KEYS;
 	ctx->touch.enabled = 0;
 	ctx->touch.dx = 0;
 	ctx->touch.dy = 0;
 
+	// High power led
 	uint8_t reg;
 	(void)kbd_write_i2c_u8(ctx->i2c_client, 0x40, 0x1a);
 	(void)kbd_read_i2c_u8(ctx->i2c_client, 0x41, &reg);
 	reg = (reg & ~7) | 0x3;
+	(void)kbd_write_i2c_u8(ctx->i2c_client, 0x41, reg);
+
+	// Finger dectection
+	(void)kbd_write_i2c_u8(ctx->i2c_client, 0x40, 0x60);
+	(void)kbd_read_i2c_u8(ctx->i2c_client, 0x41, &reg);
+	reg |= 1 << 2;
 	(void)kbd_write_i2c_u8(ctx->i2c_client, 0x41, reg);
 
 	return 0;
@@ -35,6 +42,25 @@ void input_touch_shutdown(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 
 #define XCS 4
 #define YCS 4
+#define CSMAX 30
+
+#define LAST_DIRS_LEN 4
+static uint16_t last_dirs = 0x0000;
+static uint8_t last_dirs_idx = 0;
+static int any_in_last_dirs(uint8_t is_x)
+{
+	int result;
+	int dir = (is_x) ? 1 : 2;
+	uint16_t pattern = (is_x) ? 0x1111 : 0x2222;
+
+	result = (last_dirs & pattern) ? 1 : 0;
+
+	last_dirs &= (0xffff0fff >> (4 * (last_dirs_idx % LAST_DIRS_LEN)));
+	last_dirs |= dir << (4 * ((LAST_DIRS_LEN - 1) - (last_dirs_idx % LAST_DIRS_LEN)));
+	last_dirs_idx++;
+
+	return result;
+}
 
 void input_touch_report_event(struct kbd_ctx *ctx)
 {
@@ -42,18 +68,22 @@ void input_touch_report_event(struct kbd_ctx *ctx)
 		return;
 	}
 
-	uint8_t reg = 0xcc;
+	// Read quality
+	uint8_t qual = 0xcc;
 	(void)kbd_write_i2c_u8(ctx->i2c_client, 0x40, 0x5);
-	(void)kbd_read_i2c_u8(ctx->i2c_client, 0x41, &reg);
-	if (reg < 16) {
-	dev_info_fe(&ctx->i2c_client->dev,
-		"Reject %3d\n", reg);
+	(void)kbd_read_i2c_u8(ctx->i2c_client, 0x41, &qual);
+	if (qual < 16) {
 		return;
 	}
 
+	// Read finger
+	uint8_t finger = 0xcc;
+	(void)kbd_write_i2c_u8(ctx->i2c_client, 0x40, 0x75);
+	(void)kbd_read_i2c_u8(ctx->i2c_client, 0x41, &finger);
+
 	dev_info_fe(&ctx->i2c_client->dev,
-		"%s X Reg: %d Y Reg: %d.\nQual %3d",
-		__func__, ctx->touch.dx, ctx->touch.dy, reg);
+		"%s X Reg: %d Y Reg: %d.\nQual %3d Finger 0x%02x\n",
+		/*__func__*/"", ctx->touch.dx, ctx->touch.dy, qual, finger);
 
 	// Report mouse movement
 	if (ctx->touch.input_as == TOUCH_INPUT_AS_MOUSE) {
@@ -67,11 +97,17 @@ void input_touch_report_event(struct kbd_ctx *ctx)
 		// TODO: configure sensor firmware w/ register
 		ctx->touch.dx = -ctx->touch.dx;
 
-		// X or Y clamp
+		// X or Y smoothing
 		if (abs(ctx->touch.dx) > abs(ctx->touch.dy * 2)) {
 			ctx->touch.dy = 0;
+			if (!any_in_last_dirs(1)) {
+				ctx->touch.dx = 0;
+			}
 		} else if (abs(ctx->touch.dy) > abs(ctx->touch.dx * 2)) {
 			ctx->touch.dx = 0;
+			if (!any_in_last_dirs(0)) {
+				ctx->touch.dy = 0;
+			}
 		}
 
 		// Negative X: left arrow key
@@ -118,12 +154,12 @@ void input_touch_report_event(struct kbd_ctx *ctx)
 }
 
 // Touch enabled: touchpad click sends enter / mouse click
-// Touch disabled: touchpad click enters meta mode
+// Touch disabled: touchpad click enables touch mode
 int input_touch_consumes_keycode(struct kbd_ctx* ctx,
 	uint8_t *remapped_keycode, uint8_t keycode, uint8_t state)
 {
 	// Touchpad click
-	// Touch off: enable meta mode
+	// Touch off: enable touch
 	// Touch on: enter or mouse click
 	if (keycode == KEY_COMPOSE) {
 
@@ -141,28 +177,17 @@ int input_touch_consumes_keycode(struct kbd_ctx* ctx,
 			}
 
 			return 1;
+
+		// If touch off, touchpad click will turn touch on
+		} else if (state == KEY_STATE_RELEASED) {
+			input_touch_enable(ctx);
 		}
 
-		// If touch off, touchpad click will be handled by meta handler
+	// Back key disables touch mode if touch enabled
+	} else if (ctx->touch.enabled && (keycode == KEY_ESC)) {
 
-	// Berry key
-	// Touch off: sends Tmux prefix (Control + code 171 in keymap)
-	// Touch on: enable meta mode
-	} else if (keycode == KEY_PROPS) {
-
-		if (state == KEY_STATE_RELEASED) {
-
-			// Send Tmux prefix
-			if (!ctx->touch.enabled) {
-				input_report_key(ctx->input_dev, KEY_LEFTCTRL, TRUE);
-				input_report_key(ctx->input_dev, 171, TRUE);
-				input_report_key(ctx->input_dev, 171, FALSE);
-				input_report_key(ctx->input_dev, KEY_LEFTCTRL, FALSE);
-
-			// Enable meta mode
-			} else {
-				input_meta_enable(ctx);
-			}
+		if  (state == KEY_STATE_RELEASED) {
+			input_touch_disable(ctx);
 		}
 
 		return 1;
@@ -189,8 +214,8 @@ void input_touch_set_activation(struct kbd_ctx *ctx, uint8_t activation)
 		ctx->touch.activation = TOUCH_ACT_ALWAYS;
 		input_touch_enable(ctx);
 
-	} else if (activation == TOUCH_ACT_META) {
-		ctx->touch.activation = TOUCH_ACT_META;
+	} else if (activation == TOUCH_ACT_CLICK) {
+		ctx->touch.activation = TOUCH_ACT_CLICK;
 		input_touch_disable(ctx);
 	}
 }

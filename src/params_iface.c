@@ -15,7 +15,7 @@
 #include "params_iface.h"
 
 // Kernel module parameters
-static char* touch_act_setting = "meta"; // "meta" or "always"
+static char* touch_act_setting = "click"; // "click" or "always"
 static char* touch_as_setting = "keys"; // "keys" or "mouse"
 static char* handle_poweroff_setting = "0"; // Enable to have module invoke poweroff
 static char* shutdown_grace_setting = "30"; // 30 seconds between shutdown signal and poweroff
@@ -29,9 +29,9 @@ static int set_touch_act_setting(struct kbd_ctx* ctx, char const* val)
 		return 0;
 	}
 
-	// Touchpad only active when clicking in meta mode
-	if (strcmp(val, "meta") == 0) {
-		input_touch_set_activation(ctx, TOUCH_ACT_META);
+	// Touchpad only active when clicked
+	if (strcmp(val, "click") == 0) {
+		input_touch_set_activation(ctx, TOUCH_ACT_CLICK);
 		return 0;
 
 	// Touchpad always active
@@ -52,7 +52,7 @@ static char* copy_and_strip(char* buf, size_t buf_len, const char* val)
 	return strstrip(buf);
 }
 
-// Activate touch when clicking in meta mode, or always enabled
+// Activate touch when clicked, or always enabled
 static int touch_act_setting_param_set(const char *val, const struct kernel_param* kp)
 {
 	char buf[8];
@@ -70,7 +70,7 @@ static const struct kernel_param_ops touch_act_setting_param_ops = {
 	.get = param_get_charp,
 };
 module_param_cb(touch_act, &touch_act_setting_param_ops, &touch_act_setting, 0664);
-MODULE_PARM_DESC(touch_act_setting, "Touchpad enabled after clicking in meta mode (\"meta\") or always enabled (\"always\")");
+MODULE_PARM_DESC(touch_act_setting, "Touchpad enabled after clicking (\"click\") or always enabled (\"always\")");
 
 // Update touchpad mode setting in global context, if available
 static int set_touch_as_setting(struct kbd_ctx* ctx, char const* val)

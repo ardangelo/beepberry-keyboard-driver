@@ -38,7 +38,7 @@ struct touch_ctx
 {
 	enum {
 		TOUCH_ACT_ALWAYS = 0,
-		TOUCH_ACT_META = 1
+		TOUCH_ACT_CLICK = 1
 	} activation;
 
 	enum {
