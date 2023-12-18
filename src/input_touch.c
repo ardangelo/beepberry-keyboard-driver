@@ -6,6 +6,7 @@
 
 #include <linux/input.h>
 #include <linux/module.h>
+#include <linux/math64.h>
 
 #include "config.h"
 #include "debug_levels.h"
@@ -38,6 +39,12 @@ void input_touch_report_event(struct kbd_ctx *ctx)
 	uint8_t qual;
 #endif
 
+	const int threshold = 10000;
+	static u64 prev_avg_time_ns = 0;
+	static u64 prev_key_time_ns = 0;
+	static int factor_x = 0;
+	static int factor_y = 0;
+
 	if (!ctx || !ctx->touch.enabled) {
 		return;
 	}
@@ -58,56 +65,90 @@ void input_touch_report_event(struct kbd_ctx *ctx)
 #if 0
 		input_report_mouse(ctx->input_dev, ctx->touch.dx, ctx->touch.dy);
 #endif
-		ctx->touch.dx = 0;
-		ctx->touch.dy = 0;
 
 	// Report arrow key movement
 	} else if (ctx->touch.input_as == TOUCH_INPUT_AS_KEYS) {
 
-		// Accumulate X / Y
-		ctx->touch.x += ctx->touch.dx;
-		ctx->touch.dx = 0;
-		ctx->touch.y += ctx->touch.dy;
-		ctx->touch.dy = 0;
+		u64 cur_time_ns = ktime_get_ns();
+		if (cur_time_ns < prev_avg_time_ns) {
+			dev_info_fe(&ctx->i2c_client->dev, "Cur time < prev avg time\n");
+			prev_avg_time_ns = cur_time_ns;
+			return;
+		}
+		if (cur_time_ns < prev_key_time_ns) {
+			dev_info_fe(&ctx->i2c_client->dev, "Cur time < prev key time\n");
+			prev_key_time_ns = cur_time_ns;
+			return;
+		}
 
-		// Negative X: left arrow key
-		if (ctx->touch.x <= -XCS) {
+		// Clamp factor to multiple of threshold
+		const int clamp = 1*threshold;
+		if (factor_x > clamp) {
+			factor_x = clamp;
+		} else if (factor_x < -1*clamp) {
+			factor_x = -1*clamp;
+		}
 
-			do {
-				input_report_key(ctx->input_dev, KEY_LEFT, TRUE);
-				input_report_key(ctx->input_dev, KEY_LEFT, FALSE);
-				ctx->touch.x += XCS;
-			} while (ctx->touch.x <= -XCS);
+		if (factor_y > clamp) {
+			factor_y = clamp;
+		} else if (factor_y < -1*clamp) {
+			factor_y = -1*clamp;
+		}
 
-		// Positive X: right arrow key
-		} else if (ctx->touch.x > XCS) {
+		// Every 100ms, halve the running average factor.
+		int decimate = div_u64((cur_time_ns - prev_avg_time_ns), 10000);
+		if (decimate) {
+			for (int i = 0; i < decimate; i++) {
+				factor_x /= 2;
+				factor_y /= 2;
+			}
+			prev_avg_time_ns = cur_time_ns;
+		}
 
-			do {
+		// Add in the current inputs to the running average.
+		factor_x += ctx->touch.dx*3200;
+		factor_y += ctx->touch.dy*1700;
+
+		// Rate limit emitted key events to every 25ms.
+		u64 time_since_last_key_ms = (cur_time_ns - prev_key_time_ns)/1000000;
+		if (time_since_last_key_ms < 25) {
+			dev_info_fe(&ctx->i2c_client->dev, "Key time < 25ms\n");
+			return;
+		}
+		prev_key_time_ns = cur_time_ns;
+
+		// Multiply running average factor and input, with attenuation factor
+		// from the other axis.
+		int virt_x = div_u64(abs(factor_x), (abs(factor_y)+1)) * ctx->touch.dx;
+		int virt_y = div_u64(abs(factor_y), (abs(factor_x)+1)) * ctx->touch.dy;
+
+		dev_info_fe(&ctx->i2c_client->dev,
+			"Virt X %d / %d Y %d / %d\n",
+			virt_x, threshold, virt_y, threshold);
+
+		if (abs(virt_x) > threshold) {
+			if (virt_x > 0) {
 				input_report_key(ctx->input_dev, KEY_RIGHT, TRUE);
 				input_report_key(ctx->input_dev, KEY_RIGHT, FALSE);
-				ctx->touch.x -= XCS;
-			} while (ctx->touch.x > XCS);
+			} else {
+				input_report_key(ctx->input_dev, KEY_LEFT, TRUE);
+				input_report_key(ctx->input_dev, KEY_LEFT, FALSE);
+			}
 		}
 
-		// Negative Y: up arrow key
-		if (ctx->touch.y <= -YCS) {
-
-			do {
-				input_report_key(ctx->input_dev, KEY_UP, TRUE);
-				input_report_key(ctx->input_dev, KEY_UP, FALSE);
-				ctx->touch.y += YCS;
-			} while (ctx->touch.y <= -YCS);
-
-		// Positive Y: down arrow key
-		} else if (ctx->touch.y > YCS) {
-
-			do {
+		if (abs(virt_y) > threshold) {
+			if (virt_y > 0) {
 				input_report_key(ctx->input_dev, KEY_DOWN, TRUE);
 				input_report_key(ctx->input_dev, KEY_DOWN, FALSE);
-				ctx->touch.y -= YCS;
-			} while (ctx->touch.y > YCS);
+			} else {
+				input_report_key(ctx->input_dev, KEY_UP, TRUE);
+				input_report_key(ctx->input_dev, KEY_UP, FALSE);
+			}
 		}
 	}
+
+	ctx->touch.dx = 0;
+	ctx->touch.dy = 0;
 }
 
 // Touch enabled: touchpad click sends enter / mouse click
@@ -125,8 +166,8 @@ int input_touch_consumes_keycode(struct kbd_ctx* ctx,
 			// Keys mode, send enter
 			if ((ctx->touch.input_as == TOUCH_INPUT_AS_KEYS)
 			 && (state == KEY_STATE_RELEASED)) {
-				input_report_key(ctx->input_dev, KEY_ENTER, TRUE);
-				input_report_key(ctx->input_dev, KEY_ENTER, FALSE);
+				//input_report_key(ctx->input_dev, KEY_ENTER, TRUE);
+				//input_report_key(ctx->input_dev, KEY_ENTER, FALSE);
 
 			// Mouse mode, send mouse click
 			} else if (ctx->touch.input_as == TOUCH_INPUT_AS_MOUSE) {
