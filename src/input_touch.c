@@ -69,14 +69,13 @@ void input_touch_report_event(struct kbd_ctx *ctx)
 	// Report arrow key movement
 	} else if (ctx->touch.input_as == TOUCH_INPUT_AS_KEYS) {
 
+		// Exit if current time is less than the last average / key time
 		u64 cur_time_ns = ktime_get_ns();
 		if (cur_time_ns < prev_avg_time_ns) {
-			dev_info_fe(&ctx->i2c_client->dev, "Cur time < prev avg time\n");
 			prev_avg_time_ns = cur_time_ns;
 			return;
 		}
 		if (cur_time_ns < prev_key_time_ns) {
-			dev_info_fe(&ctx->i2c_client->dev, "Cur time < prev key time\n");
 			prev_key_time_ns = cur_time_ns;
 			return;
 		}
@@ -88,20 +87,17 @@ void input_touch_report_event(struct kbd_ctx *ctx)
 		} else if (factor_x < -1*clamp) {
 			factor_x = -1*clamp;
 		}
-
 		if (factor_y > clamp) {
 			factor_y = clamp;
 		} else if (factor_y < -1*clamp) {
 			factor_y = -1*clamp;
 		}
 
-		// Every 100ms, halve the running average factor.
-		int decimate = div_u64((cur_time_ns - prev_avg_time_ns), 10000);
+		// Every 131ms, halve the running average factor.
+		int decimate = (cur_time_ns - prev_avg_time_ns) >> 17;
 		if (decimate) {
-			for (int i = 0; i < decimate; i++) {
-				factor_x /= 2;
-				factor_y /= 2;
-			}
+			factor_x >>= decimate;
+			factor_y >>= decimate;
 			prev_avg_time_ns = cur_time_ns;
 		}
 
@@ -109,10 +105,9 @@ void input_touch_report_event(struct kbd_ctx *ctx)
 		factor_x += ctx->touch.dx*3200;
 		factor_y += ctx->touch.dy*1700;
 
-		// Rate limit emitted key events to every 25ms.
-		u64 time_since_last_key_ms = (cur_time_ns - prev_key_time_ns)/1000000;
+		// Rate limit emitted key events to every ~25ms.
+		u64 time_since_last_key_ms = (cur_time_ns - prev_key_time_ns) >> 20;
 		if (time_since_last_key_ms < 25) {
-			dev_info_fe(&ctx->i2c_client->dev, "Key time < 25ms\n");
 			return;
 		}
 		prev_key_time_ns = cur_time_ns;
