@@ -31,31 +31,21 @@ void input_touch_shutdown(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 
 #define XCS 4
 #define YCS 4
-#define CSMAX 30
 
 void input_touch_report_event(struct kbd_ctx *ctx)
 {
+#if (DEBUG_LEVEL & DEBUG_LEVEL_FE)
 	uint8_t qual;
+#endif
 
 	if (!ctx || !ctx->touch.enabled) {
 		return;
 	}
 
-#if 0
-	// Reject high values
-	if (abs(ctx->touch.dx) > CSMAX) {
-		ctx->touch.dx = 0;
-	}
-	if (abs(ctx->touch.dy) > CSMAX) {
-		ctx->touch.dy = 0;
-	}
-#else
+	// Log touchpad surface quality
+#if (DEBUG_LEVEL & DEBUG_LEVEL_FE)
 	kbd_write_i2c_u8(ctx->i2c_client, REG_TOUCHPAD_REG, 0x05);
 	kbd_read_i2c_u8(ctx->i2c_client, REG_TOUCHPAD_VAL, &qual);
-
-	if (qual < 16) {
-		return;
-	}
 
 	dev_info_fe(&ctx->i2c_client->dev,
 		"Touch (%d, %d) Qual %d\n",
