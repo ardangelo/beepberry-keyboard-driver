@@ -91,10 +91,8 @@ void input_touch_report_event(struct kbd_ctx *ctx)
 
 	// Report mouse movement
 	if (ctx->touch.input_as == TOUCH_INPUT_AS_MOUSE) {
-
-#if 0
-		input_report_mouse(ctx->input_dev, ctx->touch.dx, ctx->touch.dy);
-#endif
+		input_report_rel(ctx->input_dev, REL_X, (int8_t)ctx->touch.dx);
+		input_report_rel(ctx->input_dev, REL_Y, (int8_t)ctx->touch.dy);
 
 	// Report arrow key movement
 	} else if (ctx->touch.input_as == TOUCH_INPUT_AS_KEYS) {
@@ -172,7 +170,8 @@ int input_touch_consumes_keycode(struct kbd_ctx* ctx,
 
 			// Mouse mode, send mouse click
 			} else if (ctx->touch.input_as == TOUCH_INPUT_AS_MOUSE) {
-				// TODO: mouse click
+				input_report_key(ctx->input_dev, BTN_LEFT,
+					(state == KEY_STATE_PRESSED));
 			}
 
 			return 1;
@@ -226,6 +225,8 @@ void input_touch_set_input_as(struct kbd_ctx *ctx, uint8_t input_as)
 	// Scale setting for touch input as keys
 	if (input_as == TOUCH_INPUT_AS_KEYS) {
 		enable_scale_2x(ctx);
+
+	// Mouse does not apply scaling
 	} else if (input_as == TOUCH_INPUT_AS_MOUSE) {
 		disable_scale_2x(ctx);
 	}

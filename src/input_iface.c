@@ -249,10 +249,10 @@ int input_probe(struct i2c_client* i2c_client)
 
 	// Set input device capabilities
 	input_set_capability(g_ctx->input_dev, EV_MSC, MSC_SCAN);
-	#if (BBQ20KBD_TRACKPAD_USE == BBQ20KBD_TRACKPAD_AS_MOUSE)
-		input_set_capability(g_ctx->input_dev, EV_REL, REL_X);
-		input_set_capability(g_ctx->input_dev, EV_REL, REL_Y);
-	#endif
+	input_set_capability(g_ctx->input_dev, EV_REL, REL_X);
+	input_set_capability(g_ctx->input_dev, EV_REL, REL_Y);
+	input_set_capability(g_ctx->input_dev, EV_KEY, BTN_LEFT);
+	input_set_capability(g_ctx->input_dev, EV_KEY, BTN_RIGHT);
 
 	// Request IRQ handler for I2C client and initialize workqueue
 	if ((rc = devm_request_threaded_irq(&i2c_client->dev,
