@@ -15,10 +15,12 @@
 #include "params_iface.h"
 
 // Kernel module parameters
-static char* touch_act_setting = "click"; // "click" or "always"
-static char* touch_as_setting = "keys"; // "keys" or "mouse"
-static char* handle_poweroff_setting = "0"; // Enable to have module invoke poweroff
-static char* shutdown_grace_setting = "30"; // 30 seconds between shutdown signal and poweroff
+static char *touch_act_setting = "click"; // "click" or "always"
+static char *touch_as_setting = "keys"; // "keys" or "mouse"
+static char *touch_min_squal_setting = "16"; // Minimum surface quality to accept touch event
+static char *touch_led_setting = "high"; // "low", "med", "high"
+static char *handle_poweroff_setting = "0"; // Enable to have module invoke poweroff
+static char *shutdown_grace_setting = "30"; // 30 seconds between shutdown signal and poweroff
 
 // Update touchpad activation setting in global context, if available
 static int set_touch_act_setting(struct kbd_ctx* ctx, char const* val)
@@ -115,6 +117,91 @@ static const struct kernel_param_ops touch_as_setting_param_ops = {
 };
 module_param_cb(touch_as, &touch_as_setting_param_ops, &touch_as_setting, 0664);
 MODULE_PARM_DESC(touch_as_setting, "Touchpad sends arrow keys (\"keys\") or mouse (\"mouse\")");
+
+// Set touchpad minimum surface quality level
+static int set_touch_min_squal_setting(struct kbd_ctx *ctx, char const* val)
+{
+	int parsed_val;
+
+	// If no state was passed, exit
+	if (!ctx) {
+		return 0;
+	}
+
+	// Parse setting
+	if ((parsed_val = parse_u8(val)) < 0) {
+		return parsed_val;
+	}
+
+	// Write setting to firmware
+	(void)kbd_write_i2c_u8(ctx->i2c_client, REG_TOUCHPAD_MIN_SQUAL, (uint8_t)parsed_val);
+
+	return 0;
+}
+
+// Touchpad minimum surface quality level
+static int touch_min_squal_param_set(const char *val, const struct kernel_param *kp)
+{
+	char *stripped_val;
+	char stripped_val_buf[4];
+
+	// Copy provided value to buffer and strip it of newlines
+	strncpy(stripped_val_buf, val, 4);
+	stripped_val_buf[3] = '\0';
+	stripped_val = strstrip(stripped_val_buf);
+
+	return (set_touch_min_squal_setting(g_ctx, stripped_val) < 0)
+		? -EINVAL
+		: param_set_charp(stripped_val, kp);
+}
+
+static const struct kernel_param_ops touch_min_squal_param_ops = {
+	.set = touch_min_squal_param_set,
+	.get = param_get_charp,
+};
+
+module_param_cb(touch_min_squal, &touch_min_squal_param_ops, &touch_min_squal_setting, 0664);
+MODULE_PARM_DESC(touch_min_squal_setting, "Minimum surface quality to accept touch event");
+
+// Set touchpad LED power level
+static int set_touch_led_setting(struct kbd_ctx* ctx, char const* val)
+{
+	if (strcmp(val, "low") == 0) {
+		(void)kbd_write_i2c_u8(ctx->i2c_client, REG_TOUCHPAD_LED, TOUCHPAD_LED_LOW);
+		return 0;
+
+	} else if (strcmp(val, "med") == 0) {
+		(void)kbd_write_i2c_u8(ctx->i2c_client, REG_TOUCHPAD_LED, TOUCHPAD_LED_MED);
+		return 0;
+
+	} else if (strcmp(val, "high") == 0) {
+		(void)kbd_write_i2c_u8(ctx->i2c_client, REG_TOUCHPAD_LED, TOUCHPAD_LED_HIGH);
+		return 0;
+	}
+
+	// Invalid parameter value
+	return -1;
+}
+
+// Touchpad LED level
+static int touch_led_setting_param_set(const char *val, const struct kernel_param* kp)
+{
+	char buf[8];
+	char *stripped_val;
+
+	stripped_val = copy_and_strip(buf, sizeof(buf), val);
+
+	return (set_touch_led_setting(g_ctx, stripped_val) < 0)
+		? -EINVAL
+		: param_set_charp(stripped_val, kp);
+}
+
+static const struct kernel_param_ops touch_led_setting_param_ops = {
+	.set = touch_led_setting_param_set,
+	.get = param_get_charp,
+};
+module_param_cb(touch_led, &touch_led_setting_param_ops, &touch_led_setting, 0664);
+MODULE_PARM_DESC(touch_led_setting, "Touchpad LED power level (\"low\", \"med\", \"high\")");
 
 // Update poweroff setting in global context, if available
 static int set_handle_poweroff_setting(struct kbd_ctx *ctx, char const* val)
@@ -214,8 +301,9 @@ int params_probe(void)
 	if ((rc = set_touch_as_setting(g_ctx, touch_as_setting)) < 0) {
 		return rc;
 	}
-
-	// Set initial poweroff setting based on module's parameter
+	if ((rc = set_touch_min_squal_setting(g_ctx, touch_min_squal_setting)) < 0) {
+		return rc;
+	}
 	if ((rc = set_handle_poweroff_setting(g_ctx, handle_poweroff_setting)) < 0) {
 		return rc;
 	}

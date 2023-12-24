@@ -112,19 +112,11 @@ int input_fw_consumes_keycode(struct kbd_ctx* ctx,
 {
 	// Power key runs /sbin/poweroff if `handle_poweroff` is set
 	if (keycode == KEY_POWER) {
-
-		if ((state == KEY_STATE_LONG_HOLD) && (g_handle_poweroff)) {
+		if ((state == KEY_STATE_PRESSED) && g_handle_poweroff) {
 			input_fw_run_poweroff(ctx);
-
-		// Pressing power button sends Tmux prefix (Control + code 171 in keymap)
-		} else if (state == KEY_STATE_RELEASED) {
-			input_report_key(ctx->input_dev, KEY_LEFTCTRL, TRUE);
-			input_report_key(ctx->input_dev, 171, TRUE);
-			input_report_key(ctx->input_dev, 171, FALSE);
-			input_report_key(ctx->input_dev, KEY_LEFTCTRL, FALSE);
 		}
 
-		return 1;
+		// Allow power key to be handled by OS
 	}
 
 	return 0;

@@ -47,7 +47,7 @@ struct touch_ctx
 	} input_as;
 
 	uint8_t enabled;
-	int dx, dy;
+	int x, dx, y, dy;
 };
 
 struct kbd_ctx

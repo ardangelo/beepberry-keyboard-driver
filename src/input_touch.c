@@ -18,21 +18,10 @@ int input_touch_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 	ctx->touch.activation = TOUCH_ACT_CLICK;
 	ctx->touch.input_as = TOUCH_INPUT_AS_KEYS;
 	ctx->touch.enabled = 0;
+	ctx->touch.x = 0;
 	ctx->touch.dx = 0;
+	ctx->touch.y = 0;
 	ctx->touch.dy = 0;
-
-	// High power led
-	uint8_t reg;
-	(void)kbd_write_i2c_u8(ctx->i2c_client, 0x40, 0x1a);
-	(void)kbd_read_i2c_u8(ctx->i2c_client, 0x41, &reg);
-	reg = (reg & ~7) | 0x3;
-	(void)kbd_write_i2c_u8(ctx->i2c_client, 0x41, reg);
-
-	// Finger dectection
-	(void)kbd_write_i2c_u8(ctx->i2c_client, 0x40, 0x60);
-	(void)kbd_read_i2c_u8(ctx->i2c_client, 0x41, &reg);
-	reg |= 1 << 2;
-	(void)kbd_write_i2c_u8(ctx->i2c_client, 0x41, reg);
 
 	return 0;
 }
@@ -44,113 +33,91 @@ void input_touch_shutdown(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 #define YCS 4
 #define CSMAX 30
 
-#define LAST_DIRS_LEN 4
-static uint16_t last_dirs = 0x0000;
-static uint8_t last_dirs_idx = 0;
-static int any_in_last_dirs(uint8_t is_x)
-{
-	int result;
-	int dir = (is_x) ? 1 : 2;
-	uint16_t pattern = (is_x) ? 0x1111 : 0x2222;
-
-	result = (last_dirs & pattern) ? 1 : 0;
-
-	last_dirs &= (0xffff0fff >> (4 * (last_dirs_idx % LAST_DIRS_LEN)));
-	last_dirs |= dir << (4 * ((LAST_DIRS_LEN - 1) - (last_dirs_idx % LAST_DIRS_LEN)));
-	last_dirs_idx++;
-
-	return result;
-}
-
 void input_touch_report_event(struct kbd_ctx *ctx)
 {
+	uint8_t qual;
+
 	if (!ctx || !ctx->touch.enabled) {
 		return;
 	}
 
-	// Read quality
-	uint8_t qual = 0xcc;
-	(void)kbd_write_i2c_u8(ctx->i2c_client, 0x40, 0x5);
-	(void)kbd_read_i2c_u8(ctx->i2c_client, 0x41, &qual);
+#if 0
+	// Reject high values
+	if (abs(ctx->touch.dx) > CSMAX) {
+		ctx->touch.dx = 0;
+	}
+	if (abs(ctx->touch.dy) > CSMAX) {
+		ctx->touch.dy = 0;
+	}
+#else
+	kbd_write_i2c_u8(ctx->i2c_client, REG_TOUCHPAD_REG, 0x05);
+	kbd_read_i2c_u8(ctx->i2c_client, REG_TOUCHPAD_VAL, &qual);
+
 	if (qual < 16) {
 		return;
 	}
 
-	// Read finger
-	uint8_t finger = 0xcc;
-	(void)kbd_write_i2c_u8(ctx->i2c_client, 0x40, 0x75);
-	(void)kbd_read_i2c_u8(ctx->i2c_client, 0x41, &finger);
-
 	dev_info_fe(&ctx->i2c_client->dev,
-		"%s X Reg: %d Y Reg: %d.\nQual %3d Finger 0x%02x\n",
-		/*__func__*/"", ctx->touch.dx, ctx->touch.dy, qual, finger);
+		"Touch (%d, %d) Qual %d\n",
+		ctx->touch.dx, ctx->touch.dy, qual);
+#endif
 
 	// Report mouse movement
 	if (ctx->touch.input_as == TOUCH_INPUT_AS_MOUSE) {
+
 #if 0
 		input_report_mouse(ctx->input_dev, ctx->touch.dx, ctx->touch.dy);
 #endif
+		ctx->touch.dx = 0;
+		ctx->touch.dy = 0;
 
 	// Report arrow key movement
 	} else if (ctx->touch.input_as == TOUCH_INPUT_AS_KEYS) {
 
-		// TODO: configure sensor firmware w/ register
-		ctx->touch.dx = -ctx->touch.dx;
-
-		// X or Y smoothing
-		if (abs(ctx->touch.dx) > abs(ctx->touch.dy * 2)) {
-			ctx->touch.dy = 0;
-			if (!any_in_last_dirs(1)) {
-				ctx->touch.dx = 0;
-			}
-		} else if (abs(ctx->touch.dy) > abs(ctx->touch.dx * 2)) {
-			ctx->touch.dx = 0;
-			if (!any_in_last_dirs(0)) {
-				ctx->touch.dy = 0;
-			}
-		}
+		// Accumulate X / Y
+		ctx->touch.x += ctx->touch.dx;
+		ctx->touch.dx = 0;
+		ctx->touch.y += ctx->touch.dy;
+		ctx->touch.dy = 0;
 
 		// Negative X: left arrow key
-		if (ctx->touch.dx <= -XCS) {
+		if (ctx->touch.x <= -XCS) {
 
 			do {
 				input_report_key(ctx->input_dev, KEY_LEFT, TRUE);
 				input_report_key(ctx->input_dev, KEY_LEFT, FALSE);
-				ctx->touch.dx += XCS;
-			} while (ctx->touch.dx <= -XCS);
+				ctx->touch.x += XCS;
+			} while (ctx->touch.x <= -XCS);
 
 		// Positive X: right arrow key
-		} else if (ctx->touch.dx > XCS) {
+		} else if (ctx->touch.x > XCS) {
 
 			do {
 				input_report_key(ctx->input_dev, KEY_RIGHT, TRUE);
 				input_report_key(ctx->input_dev, KEY_RIGHT, FALSE);
-				ctx->touch.dx -= XCS;
-			} while (ctx->touch.dx > XCS);
+				ctx->touch.x -= XCS;
+			} while (ctx->touch.x > XCS);
 		}
 
 		// Negative Y: up arrow key
-		if (ctx->touch.dy <= -YCS) {
+		if (ctx->touch.y <= -YCS) {
 
 			do {
 				input_report_key(ctx->input_dev, KEY_UP, TRUE);
 				input_report_key(ctx->input_dev, KEY_UP, FALSE);
-				ctx->touch.dy += YCS;
-			} while (ctx->touch.dy <= -YCS);
+				ctx->touch.y += YCS;
+			} while (ctx->touch.y <= -YCS);
 
 		// Positive Y: down arrow key
-		} else if (ctx->touch.dy > YCS) {
+		} else if (ctx->touch.y > YCS) {
 
 			do {
 				input_report_key(ctx->input_dev, KEY_DOWN, TRUE);
 				input_report_key(ctx->input_dev, KEY_DOWN, FALSE);
-				ctx->touch.dy -= YCS;
-			} while (ctx->touch.dy > YCS);
+				ctx->touch.y -= YCS;
+			} while (ctx->touch.y > YCS);
 		}
 	}
-
-	ctx->touch.dx = 0;
-	ctx->touch.dy = 0;
 }
 
 // Touch enabled: touchpad click sends enter / mouse click
