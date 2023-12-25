@@ -66,8 +66,8 @@ static void key_report_event(struct kbd_ctx* ctx,
 
 	// Subsystem key handling
 	if (input_fw_consumes_keycode(ctx, &keycode, keycode, ev->state)
-	 || input_modifiers_consumes_keycode(ctx, &keycode, keycode, ev->state)
 	 || input_touch_consumes_keycode(ctx, &keycode, keycode, ev->state)
+	 || input_modifiers_consumes_keycode(ctx, &keycode, keycode, ev->state)
 	 || input_meta_consumes_keycode(ctx, &keycode, keycode, ev->state)) {
 		return;
 	}

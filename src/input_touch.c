@@ -59,6 +59,9 @@ int input_touch_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 	ctx->touch.y = 0;
 	ctx->touch.dy = 0;
 
+	ctx->touch.enable_while_shift_held = 1;
+	ctx->touch.entry_while_shift_held = 0;
+
 	// Default touch settings
 	input_touch_set_activation(ctx, TOUCH_ACT_CLICK);
 	input_touch_set_input_as(ctx, TOUCH_INPUT_AS_KEYS);
@@ -75,7 +78,8 @@ void input_touch_report_event(struct kbd_ctx *ctx)
 	uint8_t qual;
 #endif
 
-	if (!ctx || !ctx->touch.enabled) {
+	if (!ctx || !ctx->touch.enabled
+	 || ((ctx->touch.dx == 0) && (ctx->touch.dy == 0))) {
 		return;
 	}
 
@@ -91,8 +95,15 @@ void input_touch_report_event(struct kbd_ctx *ctx)
 
 	// Report mouse movement
 	if (ctx->touch.input_as == TOUCH_INPUT_AS_MOUSE) {
+
+		// Report mouse movement
 		input_report_rel(ctx->input_dev, REL_X, (int8_t)ctx->touch.dx);
 		input_report_rel(ctx->input_dev, REL_Y, (int8_t)ctx->touch.dy);
+		ctx->touch.dx = 0;
+		ctx->touch.dy = 0;
+
+		// Reset shift sticky state if touch entry was sent while held
+		ctx->touch.entry_while_shift_held = 1;
 
 	// Report arrow key movement
 	} else if (ctx->touch.input_as == TOUCH_INPUT_AS_KEYS) {
@@ -100,12 +111,19 @@ void input_touch_report_event(struct kbd_ctx *ctx)
 		// Accumulate X / Y
 		ctx->touch.x += ctx->touch.dx;
 		ctx->touch.y += ctx->touch.dy;
+
+		// Snap movement to arrow keys directions
 		if ((ctx->touch.dx == 0) && (abs(ctx->touch.x) < XMIN)) {
 			ctx->touch.x = 0;
 		}
 		if ((ctx->touch.dy == 0) && (abs(ctx->touch.y) < YMIN)) {
 			ctx->touch.y = 0;
 		}
+		ctx->touch.dx = 0;
+		ctx->touch.dy = 0;
+
+		// Reset shift sticky state if touch entry was sent while held
+		ctx->touch.entry_while_shift_held = 1;
 
 		// Negative X: left arrow key
 		if (ctx->touch.x <= -XMIN) {
@@ -145,9 +163,6 @@ void input_touch_report_event(struct kbd_ctx *ctx)
 			} while (ctx->touch.y > YMIN);
 		}
 	}
-
-	ctx->touch.dx = 0;
-	ctx->touch.dy = 0;
 }
 
 // Touch enabled: touchpad click sends enter / mouse click
@@ -184,11 +199,29 @@ int input_touch_consumes_keycode(struct kbd_ctx* ctx,
 	// Back key disables touch mode if touch enabled
 	} else if (ctx->touch.enabled && (keycode == KEY_ESC)) {
 
-		if  (state == KEY_STATE_RELEASED) {
+		if (state == KEY_STATE_RELEASED) {
 			input_touch_disable(ctx);
 		}
 
 		return 1;
+
+	// Enable touch while shift is held
+	} else if ((keycode == KEY_LEFTSHIFT) || (keycode == KEY_RIGHTSHIFT)) {
+		if ((ctx->touch.activation == TOUCH_ACT_CLICK)
+		 && ctx->touch.enable_while_shift_held) {
+
+			if (!ctx->touch.enabled && (state == KEY_STATE_PRESSED)) {
+				ctx->touch.entry_while_shift_held = 0;
+				input_touch_enable(ctx);
+
+			} else if (ctx->touch.enabled && (state == KEY_STATE_RELEASED)) {
+				input_touch_disable(ctx);
+				if (ctx->touch.entry_while_shift_held) {
+					ctx->touch.entry_while_shift_held = 0;
+					input_modifiers_reset_shift(ctx);
+				}
+			}
+		}
 	}
 
 	return 0;

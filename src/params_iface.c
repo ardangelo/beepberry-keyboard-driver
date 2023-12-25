@@ -16,6 +16,7 @@
 
 // Kernel module parameters
 static char *touch_act_setting = "click"; // "click" or "always"
+static char *touch_shift_setting = "1"; // Hold Shift to temporarily enable touch
 static char *touch_as_setting = "keys"; // "keys" or "mouse"
 static char *touch_min_squal_setting = "16"; // Minimum surface quality to accept touch event
 static char *touch_led_setting = "high"; // "low", "med", "high"
@@ -73,6 +74,42 @@ static const struct kernel_param_ops touch_act_setting_param_ops = {
 };
 module_param_cb(touch_act, &touch_act_setting_param_ops, &touch_act_setting, 0664);
 MODULE_PARM_DESC(touch_act_setting, "Touchpad enabled after clicking (\"click\") or always enabled (\"always\")");
+
+// Update touch shift enable in global context
+static int set_touch_shift_setting(struct kbd_ctx *ctx, char const* val)
+{
+	// If no state was passed, exit
+	if (!ctx) {
+		return 0;
+	}
+
+	ctx->touch.enable_while_shift_held = val[0] != '0';
+	return 0;
+}
+
+// Hold shift to temporarily enable touch
+static int touch_shift_setting_param_set(const char *val, const struct kernel_param *kp)
+{
+	char *stripped_val;
+	char stripped_val_buf[2];
+
+	// Copy provided value to buffer and strip it of newlines
+	strncpy(stripped_val_buf, val, 2);
+	stripped_val_buf[1] = '\0';
+	stripped_val = strstrip(stripped_val_buf);
+
+	return (set_touch_shift_setting(g_ctx, stripped_val) < 0)
+		? -EINVAL
+		: param_set_charp(stripped_val, kp);
+}
+
+static const struct kernel_param_ops touch_shift_setting_param_ops = {
+	.set = touch_shift_setting_param_set,
+	.get = param_get_charp,
+};
+
+module_param_cb(touch_shift, &touch_shift_setting_param_ops, &touch_shift_setting, 0664);
+MODULE_PARM_DESC(touch_shift_setting, "Set to 1 to enable touch while Shift key is held");
 
 // Update touchpad mode setting in global context, if available
 static int set_touch_as_setting(struct kbd_ctx* ctx, char const* val)

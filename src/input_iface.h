@@ -47,6 +47,8 @@ struct touch_ctx
 	} input_as;
 
 	uint8_t enabled;
+	uint8_t enable_while_shift_held;
+	uint8_t entry_while_shift_held;
 	int x, dx, y, dy;
 };
 
@@ -131,6 +133,8 @@ void input_modifiers_reset(struct kbd_ctx* ctx);
 
 void input_modifiers_send_control(struct kbd_ctx* ctx);
 void input_modifiers_send_alt(struct kbd_ctx* ctx);
+
+void input_modifiers_reset_shift(struct kbd_ctx* ctx);
 
 // Touch
 
