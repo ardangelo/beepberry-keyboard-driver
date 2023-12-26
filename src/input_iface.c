@@ -54,7 +54,7 @@ static void key_report_event(struct kbd_ctx* ctx,
 	}
 
 	// Pressing power button sends Tmux prefix (Control + code 171 in keymap)
-	if (keycode == KEY_MUTE) {
+	if (keycode == KEY_STOP) {
 		if (ev->state == KEY_STATE_PRESSED) {
 			input_report_key(ctx->input_dev, KEY_LEFTCTRL, TRUE);
 			input_report_key(ctx->input_dev, 171, TRUE);
