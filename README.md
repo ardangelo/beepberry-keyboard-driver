@@ -35,10 +35,11 @@ Remove the following lines from `/etc/modules`:
   - Holding a modifier key (shift, physical alt, Symbol) while typing an alpha keys will apply the modifier to all alpha keys until the modifier is released.
   - One press and release of the modifier will enter sticky mode, applying the modifier to the next alpha key only. If the same modifier key is pressed and released again in sticky mode, it will be canceled.
 - Call is mapped to Control
-- Berry key is mapped to Tmux prefix (customize the prefix in the keymap file)
-- Touchpad click enters Meta mode (more on this later). Double click enters touchpad scroll mode
+- Berry key enters Meta mode for cursor movement (described in a later section)
+- Touchpad click enables touch. Configurable to always send touch
 - Back is mapped to Escape
-- Holding End Call runs the power-off routine on the RP2040, but does not send an actual key to Linux
+- Pressing End Call is mapped to Tmux prefix (customize the prefix in the keymap file)
+- Holding End Call for 5 seconds will shut down the Pi
 - Physical Alt is mapped to symbols via the keymap file
 - Symbol is mapped to AltGr (Right Alt), mapped to more symbols via the keymap file
 - Physical Alt + Enter is mapped to Tab
@@ -67,23 +68,26 @@ Module parameters:
 Write to `/sys/module/beepy_kbd/parameters/<param>` to set, or unload and
 reload the module with `beepy-kbd param=val`.
 
-- `touchpad`: one of `meta` or `keys`
-  - `meta`: default, will use the touchpad button to enable or disable meta mode.
-    See section below for how to use meta mode.
-  - `keys`: touchpad always on, swiping sends arrow keys, clicking sends Enter.
+- `touch_act`: one of `click` or `always`
+  - `click`: default, will disable touchpad until the touchpad button is clicked
+  - `always`: touchpad always on, swiping sends touch input, clicking sends Enter
+- `touch_as`: one of `keys` or `mouse`
+  - `keys`: default, send arrow keys with the touchpad
+  - `mouse`: send mouse input (useful for X11)
+- `touch_shift`: default on. Send touch input while the Shift key is held
 - `shutdown_grace`: numeric 5-255
   - Wait this many seconds between a driver-initiated shutdown
-    and hard power off to the Pi.
+    and hard power off to the Pi
   - If greater than `rewake_timer`, a shutdown will not be triggered when
-    `rewake_timer` is written.
+    `rewake_timer` is written
   - Default: 30 seconds. Minimum: 5 seconds
 
 ### Meta mode
 
 Meta mode is a modal layer that assists in rapidly moving the cursor and scrolling
 with single keypresses.
-To enter meta mode, click the touchpad button once. Then, the following keymap is applied, staying in
-meta mode until dismissed:
+To enter meta mode, click the Berry key. A Star indicator will appear in the top-right corner of the screen while in meta mode.
+The following keymap is applied, staying in meta mode until dismissed:
 
 - E: up, S: down, W: left, D: right. Why not WASD? This way, you can place your thumb in the middle of  all four of these keys, and more fluidly move the cursor without mistyping.
 - R: Home, F: End, O: PageUp, P: PageDown
@@ -95,7 +99,6 @@ meta mode until dismissed:
 - N: Decrease keyboard brightness
 - M: Increase keyboard brightness
 - $: Toggle keyboard backlight
-- Touchpad click (while in meta mode): Enable touchpad scroll mode (up and down arrrow keys). Meta mode  keys will continue to work as normal. Exiting meta mode will also exit touchpad scroll mode. Subsequent  clicks of the touchpad will type Enter.
 - Esc: (Back button): exit meta mode
 
 Typing any other key while in meta mode will exit meta mode and send the key as if it was typed normally.

@@ -6,42 +6,15 @@
 #include "config.h"
 #include "input_iface.h"
 
-// Meta mode helpers
+// Globals
 
-void input_meta_enable(struct kbd_ctx* ctx)
-{
-	ctx->meta_enabled = 1;
-
-	// Set display indicator
-	input_display_set_indicator(5, 'm');
-}
-
-void input_meta_disable(struct kbd_ctx* ctx)
-{
-	ctx->meta_enabled = 0;
-
-	// Clear display indicator
-	input_display_clear_indicator(5);
-
-	// Disable touch interrupts on I2C
-	input_fw_disable_touch_interrupts(ctx);
-
-	ctx->meta_touch_keys_mode = 0;
-}
-
-void input_meta_enable_touch_keys_mode(struct kbd_ctx* ctx)
-{
-	// Enable touch interrupts on I2C
-	input_fw_enable_touch_interrupts(ctx);
-
-	ctx->meta_touch_keys_mode = 1;
-}
+static uint8_t g_enabled;
 
 // Called before checking "repeatable" meta mode keys,
 // These keys map to an internal driver function rather than another key
 // They will not be sent to the input system
 // The check is separate from the run so that key-up events can be ignored
-bool input_meta_is_single_function_key(struct kbd_ctx* ctx, uint8_t keycode)
+static bool is_single_function_key(struct kbd_ctx* ctx, uint8_t keycode)
 {
 	switch (keycode) {
 	case KEY_T: return TRUE; // Tab
@@ -51,13 +24,12 @@ bool input_meta_is_single_function_key(struct kbd_ctx* ctx, uint8_t keycode)
 	case KEY_M: return TRUE; // Increase brightness
 	case KEY_MUTE: return TRUE; // Toggle brightness
 	case KEY_0: return TRUE; // Invert display
-	case KEY_COMPOSE: return TRUE; // Turn on touch keys mode
 	}
 
 	return FALSE;
 }
 
-void input_meta_run_single_function_key(struct kbd_ctx* ctx, uint8_t keycode)
+static void run_single_function_key(struct kbd_ctx* ctx, uint8_t keycode)
 {
 	switch (keycode) {
 
@@ -68,31 +40,18 @@ void input_meta_run_single_function_key(struct kbd_ctx* ctx, uint8_t keycode)
 		return;
 
 	case KEY_X:
-		input_send_control(ctx);
+		input_modifiers_send_control(ctx);
 		input_meta_disable(ctx);
 		return;
 
 	case KEY_C:
-		input_send_alt(ctx);
+		input_modifiers_send_alt(ctx);
 		input_meta_disable(ctx);
 		return;
 
 	case KEY_0:
 		input_display_invert(ctx);
 		input_meta_disable(ctx);
-		return;
-
-	case KEY_COMPOSE:
-		// First click of Compose enters meta mode (already here)
-		// Second click of Compose enters touch keys mode.
-		// Subsequent clicks are Enter.
-		if (ctx->meta_touch_keys_mode) {
-			input_report_key(ctx->input_dev, KEY_ENTER, 1);
-			input_report_key(ctx->input_dev, KEY_ENTER, 0);
-
-		} else {
-			input_meta_enable_touch_keys_mode(ctx);
-		}
 		return;
 
 	case KEY_N: input_fw_decrease_brightness(ctx); return;
@@ -106,7 +65,7 @@ void input_meta_run_single_function_key(struct kbd_ctx* ctx, uint8_t keycode)
 
 // Called after checking "single function" meta mode keys,
 // These keys, both press and release events, will be sent to the input system
-uint8_t input_meta_map_repeatable_key(struct kbd_ctx* ctx, uint8_t keycode)
+static uint8_t map_repeatable_key(struct kbd_ctx* ctx, uint8_t keycode)
 {
 	switch (keycode) {
 
@@ -132,9 +91,89 @@ uint8_t input_meta_map_repeatable_key(struct kbd_ctx* ctx, uint8_t keycode)
 
 int input_meta_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 {
-	ctx->meta_enabled = 0;
-	ctx->meta_touch_keys_mode = 0;
+	g_enabled = 0;
 
 	return 0;
 }
 
+void input_meta_shutdown(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
+{}
+
+int input_meta_consumes_keycode(struct kbd_ctx* ctx,
+	uint8_t *remapped_keycode, uint8_t keycode, uint8_t state)
+{
+	uint8_t simulated_keycode;
+
+	// Not in meta mode
+	if (!g_enabled) {
+
+		// Berry key enables meta mode
+		if (keycode == KEY_PROPS) {
+			if (state == KEY_STATE_RELEASED) {
+				input_meta_enable(ctx);
+			}
+			return 1;
+		}
+
+		return 0;
+	}
+
+	// Ignore modifier keys in meta mode
+	if ((keycode == KEY_LEFTSHIFT) || (keycode == KEY_RIGHTSHIFT)
+	 || (keycode == KEY_LEFTALT) || (keycode == KEY_RIGHTALT)
+	 || (keycode == KEY_LEFTCTRL) || (keycode == KEY_RIGHTCTRL)) {
+		return 1;
+	}
+
+	// Berry or Back key exits meta mode
+	if ((keycode == KEY_ESC) || (keycode == KEY_PROPS)) {
+		if (state == KEY_STATE_RELEASED) {
+			input_meta_disable(ctx);
+		}
+		return 1;
+	}
+
+	// Handle function dispatch meta mode keys
+	if (is_single_function_key(ctx, keycode)) {
+		if (state == KEY_STATE_RELEASED) {
+			run_single_function_key(ctx, keycode);
+		}
+		return 1;
+	}
+
+	// Remap to meta mode key
+	simulated_keycode = map_repeatable_key(ctx, keycode);
+
+	// Input consumed by meta mode with no remapped key
+	if (simulated_keycode == 0) {
+		return 1;
+	}
+
+	// Report key to input system
+	input_report_key(ctx->input_dev, simulated_keycode,
+		state == KEY_STATE_PRESSED);
+
+	// If exited meta mode, simulate key up event. Otherwise, input system
+	// will have remapped key as in the down state
+	if (!g_enabled && (simulated_keycode != keycode)) {
+		input_report_key(ctx->input_dev, simulated_keycode, FALSE);
+	}
+
+	return 1;
+}
+
+void input_meta_enable(struct kbd_ctx* ctx)
+{
+	g_enabled = 1;
+
+	// Set display indicator
+	input_display_set_indicator(5, 'm');
+}
+
+void input_meta_disable(struct kbd_ctx* ctx)
+{
+	g_enabled = 0;
+
+	// Clear display indicator
+	input_display_clear_indicator(5);
+}
