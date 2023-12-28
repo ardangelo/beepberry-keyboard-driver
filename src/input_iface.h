@@ -117,8 +117,8 @@ void input_display_shutdown(struct i2c_client* i2c_client, struct kbd_ctx *ctx);
 
 void input_display_invert(struct kbd_ctx* ctx);
 
-void input_display_set_indicator(uint8_t idx, char c);
-void input_display_clear_indicator(uint8_t idx);
+void input_display_set_indicator(int idx, char c);
+void input_display_clear_indicator(int idx);
 
 // Modifiers
 
