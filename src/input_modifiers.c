@@ -14,6 +14,8 @@
 
 #include "bbq20kbd_pmod_codes.h"
 
+#include "indicators.h"
+
 struct sticky_modifier
 {
 	uint8_t active;
@@ -27,7 +29,7 @@ struct sticky_modifier
 
 	// Display indicator index and code
 	uint8_t indicator_idx;
-	char indicator_char;
+	unsigned char const* indicator_pixels;
 
 	// When sticky modifier system has determined that
 	// modifier should be applied, run this callback
@@ -129,8 +131,10 @@ static void transition_sticky_modifier(struct kbd_ctx* ctx,
 		mod->set_callback(ctx, mod);
 
 		// Set display indicator
-		input_display_set_indicator(mod->indicator_idx,
-			mod->indicator_char);
+		if (mod->indicator_pixels) {
+			input_display_set_indicator(mod->indicator_idx,
+				mod->indicator_pixels);
+		}
 
 	// Released
 	} else if (state == KEY_STATE_RELEASED) {
@@ -271,7 +275,7 @@ static void default_init_sticky_modifier(struct sticky_modifier* mod)
 	mod->unset_callback = NULL;
 	mod->map_callback = NULL;
 	mod->indicator_idx = 0;
-	mod->indicator_char = '\0';
+	mod->indicator_pixels = NULL;
 }
 
 int input_modifiers_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
@@ -285,14 +289,14 @@ int input_modifiers_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 	g_sticky_ctrl.set_callback = press_sticky_modifier;
 	g_sticky_ctrl.unset_callback = release_sticky_modifier;
 	g_sticky_ctrl.indicator_idx = 2;
-	g_sticky_ctrl.indicator_char = 'c';
+	g_sticky_ctrl.indicator_pixels = ind_control;
 
 	default_init_sticky_modifier(&g_sticky_shift);
 	g_sticky_shift.keycode = KEY_LEFTSHIFT;
 	g_sticky_shift.set_callback = press_sticky_modifier;
 	g_sticky_shift.unset_callback = release_sticky_modifier;
 	g_sticky_shift.indicator_idx = 0;
-	g_sticky_shift.indicator_char = 's';
+	g_sticky_shift.indicator_pixels = ind_shift;
 
 	default_init_sticky_modifier(&g_sticky_phys_alt);
 	g_sticky_phys_alt.keycode = KEY_RIGHTCTRL;
@@ -300,21 +304,21 @@ int input_modifiers_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 	g_sticky_phys_alt.unset_callback = disable_phys_alt;
 	g_sticky_phys_alt.map_callback = map_phys_alt_keycode;
 	g_sticky_phys_alt.indicator_idx = 1;
-	g_sticky_phys_alt.indicator_char = 'p';
+	g_sticky_phys_alt.indicator_pixels = ind_phys_alt;
 
 	default_init_sticky_modifier(&g_sticky_alt);
 	g_sticky_alt.keycode = KEY_LEFTALT;
 	g_sticky_alt.set_callback = press_sticky_modifier;
 	g_sticky_alt.unset_callback = release_sticky_modifier;
 	g_sticky_alt.indicator_idx = 3;
-	g_sticky_alt.indicator_char = 'a';
+	g_sticky_alt.indicator_pixels = ind_alt;
 
 	default_init_sticky_modifier(&g_sticky_altgr);
 	g_sticky_altgr.keycode = KEY_RIGHTALT;
 	g_sticky_altgr.set_callback = press_sticky_modifier;
 	g_sticky_altgr.unset_callback = release_sticky_modifier;
 	g_sticky_altgr.indicator_idx = 4;
-	g_sticky_altgr.indicator_char = 'g';
+	g_sticky_altgr.indicator_pixels = ind_altgr;
 
 	return 0;
 }

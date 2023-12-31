@@ -6,6 +6,8 @@
 #include "config.h"
 #include "input_iface.h"
 
+#include "indicators.h"
+
 // Globals
 
 static uint8_t g_enabled;
@@ -167,7 +169,7 @@ void input_meta_enable(struct kbd_ctx* ctx)
 	g_enabled = 1;
 
 	// Set display indicator
-	input_display_set_indicator(5, 'm');
+	input_display_set_indicator(5, ind_meta);
 }
 
 void input_meta_disable(struct kbd_ctx* ctx)
