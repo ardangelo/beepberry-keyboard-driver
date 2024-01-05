@@ -87,7 +87,7 @@ static ssize_t battery_volts_show(struct kobject *kobj, struct kobj_attribute *a
 	volts_fp /= 4095;
 
 	// Format into buffer
-	return sprintf(buf, "%d.%d\n", volts_fp / 1000, volts_fp % 1000);
+	return sprintf(buf, "%d.%03d\n", volts_fp / 1000, volts_fp % 1000);
 }
 struct kobj_attribute battery_volts_attr
 	= __ATTR(battery_volts, 0444, battery_volts_show, NULL);
