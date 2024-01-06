@@ -87,7 +87,7 @@ static ssize_t battery_volts_show(struct kobject *kobj, struct kobj_attribute *a
 	volts_fp /= 4095;
 
 	// Format into buffer
-	return sprintf(buf, "%d.%d\n", volts_fp / 1000, volts_fp % 1000);
+	return sprintf(buf, "%d.%03d\n", volts_fp / 1000, volts_fp % 1000);
 }
 struct kobj_attribute battery_volts_attr
 	= __ATTR(battery_volts, 0444, battery_volts_show, NULL);
@@ -108,7 +108,20 @@ static ssize_t battery_percent_show(struct kobject *kobj, struct kobj_attribute 
 	percent /= 4095;
 
 	// Range from 3.2V min to 4.2V max
-	percent -= 4200;
+	// `percent` currently contains the fp voltage value (v * 1000; e.g. in the range from 3200 to 4200)
+	// To convert to a percentage in the range from 0 - 1 we subtract the value at 0% (3200)
+	// and divide by the difference between lowest value and higest value (4200 - 3200). Then
+	// multiply by 100 to get 0 - 100. This can all be simplified to:
+	percent -= 3200;
+	percent /= 10;
+
+	// If the voltage goes above 4.2v the percentage will go above 100. This can happen while plugged in.
+	if (percent > 100) {
+		percent = 100;
+	// If the voltage drops below 3.2v the percentage will go below 0, so cap at 0.
+	} else if (percent < 0) {
+		percent = 0;
+	}
 
 	// Format into buffer
 	return sprintf(buf, "%d\n", percent);
