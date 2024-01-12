@@ -74,7 +74,7 @@ void input_display_invert(struct kbd_ctx* ctx)
 	if ((__sharp_memory_set_invert = symbol_get(sharp_memory_set_invert))) {
 		__sharp_memory_set_invert(g_mono_invert);
 
-		(void)ioctl_call_uint32(SHARP_DEVICE_PATH, 
+		(void)ioctl_call_uint32(SHARP_DEVICE_PATH,
 			DRM_IO(DRM_COMMAND_BASE + DRM_SHARP_REDRAW), 0);
 	}
 }
@@ -128,6 +128,26 @@ void input_display_clear_indicator(int idx)
 	// Refresh display
 	(void)ioctl_call_uint32(SHARP_DEVICE_PATH, 
 		DRM_IO(DRM_COMMAND_BASE + DRM_SHARP_REDRAW), 0);
+}
+
+// Clear all overlays
+void input_display_clear_overlays(void)
+{
+	int i;
+
+	if ((__sharp_memory_clear_overlays = symbol_get(sharp_memory_clear_overlays))) {
+		__sharp_memory_clear_overlays();
+
+		// Invalidate all overlays
+		for (i = 0; i < MAX_INDICATORS; i++) {
+			g_mod_overlays[i].storage = NULL;
+			g_mod_overlays[i].display = NULL;
+		}
+		
+		// Refresh display
+		(void)ioctl_call_uint32(SHARP_DEVICE_PATH, 
+			DRM_IO(DRM_COMMAND_BASE + DRM_SHARP_REDRAW), 0);
+	}
 }
 
 int input_display_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx)

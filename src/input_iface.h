@@ -119,6 +119,7 @@ void input_display_invert(struct kbd_ctx* ctx);
 
 void input_display_set_indicator(int idx, unsigned char const* pixels);
 void input_display_clear_indicator(int idx);
+void input_display_clear_overlays(void);
 
 // Modifiers
 
