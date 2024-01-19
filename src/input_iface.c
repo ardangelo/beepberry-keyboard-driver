@@ -26,21 +26,6 @@ static void key_report_event(struct kbd_ctx* ctx,
 {
 	uint8_t keycode;
 
-	if ((ctx->keycode_map[ev->scancode] == KEY_RIGHTALT)
-	 && (ev->state == KEY_STATE_PRESSED)) {
-		printk(KERN_ERR "AltGr pressed!\n");
-	}
-
-	if ((ctx->keycode_map[ev->scancode] == KEY_RIGHTALT)
-	 && (ev->state == KEY_STATE_HOLD)) {
-		printk(KERN_ERR "AltGr held!\n");
-	}
-
-	if ((ctx->keycode_map[ev->scancode] == KEY_RIGHTALT)
-	 && (ev->state == KEY_STATE_RELEASED)) {
-		printk(KERN_ERR "AltGr released!\n");
-	}
-
 	// Only handle key pressed, held, or released events
 	if ((ev->state != KEY_STATE_PRESSED) && (ev->state != KEY_STATE_RELEASED)
 	 && (ev->state != KEY_STATE_HOLD)) {
