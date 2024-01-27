@@ -53,12 +53,20 @@ static void key_report_event(struct kbd_ctx* ctx,
 		return;
 	}
 
-	// Pressing power button sends Tmux prefix (Control + code 171 in keymap)
 	if (keycode == KEY_STOP) {
+
+		// Pressing power button sends Tmux prefix (Control + code 171 in keymap)
 		if (ev->state == KEY_STATE_PRESSED) {
 			input_report_key(ctx->input_dev, KEY_LEFTCTRL, TRUE);
 			input_report_key(ctx->input_dev, 171, TRUE);
 			input_report_key(ctx->input_dev, 171, FALSE);
+			input_report_key(ctx->input_dev, KEY_LEFTCTRL, FALSE);
+
+		// Short hold power buttion opens Tmux menu (Control + code 174 in keymap)
+		} else if (ev->state == KEY_STATE_HOLD) {
+			input_report_key(ctx->input_dev, KEY_LEFTCTRL, TRUE);
+			input_report_key(ctx->input_dev, 174, TRUE);
+			input_report_key(ctx->input_dev, 174, FALSE);
 			input_report_key(ctx->input_dev, KEY_LEFTCTRL, FALSE);
 		}
 		return;
