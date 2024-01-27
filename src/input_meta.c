@@ -5,10 +5,10 @@
 
 #include "config.h"
 #include "input_iface.h"
+#include "params_iface.h"
 
 #include "indicators.h"
 
-#define SHARP_DEVICE_PATH "/dev/dri/card0"
 #define SYMBOL_OVERLAY_PATH "/sbin/symbol-overlay"
 
 // Globals
@@ -22,15 +22,16 @@ static uint8_t g_showing_overlay;
 // Will return normally if overlay is not installed
 static void show_meta_menu(struct kbd_ctx* ctx)
 {
+	static char const* overlay_argv[] = {SYMBOL_OVERLAY_PATH, "--meta", NULL, NULL};
+
 	if (g_showing_overlay) {
 		return;
 	}
 
 	g_showing_overlay = 1;
 
-	// Call symbol menu helper
-	static char const* overlay_argv[] = {
-		SYMBOL_OVERLAY_PATH, "--meta", SHARP_DEVICE_PATH, NULL};
+	// Call overlay helper
+	overlay_argv[2] = params_get_sharp_path();
 	call_usermodehelper(overlay_argv[0], (char**)overlay_argv, NULL, UMH_NO_WAIT);
 }
 
@@ -48,6 +49,8 @@ static bool is_single_function_key(struct kbd_ctx* ctx, uint8_t keycode)
 	case KEY_M: return TRUE; // Increase brightness
 	case KEY_MUTE: return TRUE; // Toggle brightness
 	case KEY_0: return TRUE; // Invert display
+	case KEY_ESC: return TRUE; // Exit meta mode
+	case KEY_PROPS: return TRUE; // Exit meta mode
 	}
 
 	return FALSE;
@@ -75,6 +78,11 @@ static void run_single_function_key(struct kbd_ctx* ctx, uint8_t keycode)
 
 	case KEY_0:
 		input_display_invert(ctx);
+		input_meta_disable(ctx);
+		return;
+	
+	case KEY_ESC:
+	case KEY_PROPS:
 		input_meta_disable(ctx);
 		return;
 
@@ -163,14 +171,6 @@ int input_meta_consumes_keycode(struct kbd_ctx* ctx,
 		if (g_showing_indicator) {
 			input_display_set_indicator(5, ind_meta);
 		}
-	}
-
-	// Berry or Back key exits meta mode
-	if ((keycode == KEY_ESC) || (keycode == KEY_PROPS)) {
-		if (state == KEY_STATE_RELEASED) {
-			input_meta_disable(ctx);
-		}
-		return 1;
 	}
 
 	// Handle function dispatch meta mode keys

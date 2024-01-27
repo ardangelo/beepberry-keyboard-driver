@@ -115,6 +115,8 @@ void input_rtc_shutdown(struct i2c_client* i2c_client, struct kbd_ctx *ctx);
 int input_display_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx);
 void input_display_shutdown(struct i2c_client* i2c_client, struct kbd_ctx *ctx);
 
+int input_display_valid_sharp_path(char const* path);
+
 void input_display_invert(struct kbd_ctx* ctx);
 
 void input_display_set_indicator(int idx, unsigned char const* pixels);

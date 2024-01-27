@@ -22,6 +22,7 @@ static char *touch_min_squal_setting = "16"; // Minimum surface quality to accep
 static char *touch_led_setting = "high"; // "low", "med", "high"
 static char *handle_poweroff_setting = "0"; // Enable to have module invoke poweroff
 static char *shutdown_grace_setting = "30"; // 30 seconds between shutdown signal and poweroff
+static char *sharp_path_setting = "/dev/dri/card0"; // Path to Sharp display device
 
 // Update touchpad activation setting in global context, if available
 static int set_touch_act_setting(struct kbd_ctx* ctx, char const* val)
@@ -326,6 +327,30 @@ static const struct kernel_param_ops shutdown_grace_param_ops = {
 module_param_cb(shutdown_grace, &shutdown_grace_param_ops, &shutdown_grace_setting, 0664);
 MODULE_PARM_DESC(shutdown_grace_setting, "Set delay in seconds from shutdown signal to poweroff");
 
+// Path to Sharp DRM device
+static int sharp_path_param_set(const char *val, const struct kernel_param *kp)
+{
+	char *stripped_val;
+	char stripped_val_buf[64];
+
+	// Copy provided value to buffer and strip it of newlines
+	strncpy(stripped_val_buf, val, sizeof(stripped_val_buf));
+	stripped_val_buf[sizeof(stripped_val_buf) - 1] = '\0';
+	stripped_val = strstrip(stripped_val_buf);
+
+	return (input_display_valid_sharp_path(stripped_val))
+		? param_set_charp(stripped_val, kp)
+		: -EINVAL;
+}
+
+static const struct kernel_param_ops sharp_path_param_ops = {
+	.set = param_set_charp,
+	.get = param_get_charp,
+};
+
+module_param_cb(sharp_path, &sharp_path_param_ops, &sharp_path_setting, 0664);
+MODULE_PARM_DESC(sharp_path_setting, "Set path to Sharp display DRM device");
+
 // No setup
 int params_probe(void)
 {
@@ -352,4 +377,9 @@ int params_probe(void)
 void params_shutdown(void)
 {
 	return;
+}
+
+char const* params_get_sharp_path(void)
+{
+	return sharp_path_setting;
 }

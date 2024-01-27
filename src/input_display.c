@@ -5,14 +5,13 @@
 
 #include "config.h"
 #include "input_iface.h"
+#include "params_iface.h"
 
 #include "indicators.h"
 
 // Display ioctl
 
 #define DRM_SHARP_REDRAW 0x00
-
-#define SHARP_DEVICE_PATH "/dev/dri/card0"
 
 // Globals
 
@@ -66,7 +65,15 @@ static int ioctl_call_uint32(char const* path, unsigned int cmd, uint32_t value)
 
 static int ioctl_sharp_redraw(void)
 {
-	return ioctl_call_uint32(SHARP_DEVICE_PATH,
+	return ioctl_call_uint32(params_get_sharp_path(),
+		DRM_IO(DRM_COMMAND_BASE + DRM_SHARP_REDRAW), 0);
+}
+
+// Whether this is a path to a valid Sharp display device
+int input_display_valid_sharp_path(char const* path)
+{
+	// Try to refresh screen
+	return ioctl_call_uint32(path,
 		DRM_IO(DRM_COMMAND_BASE + DRM_SHARP_REDRAW), 0);
 }
 

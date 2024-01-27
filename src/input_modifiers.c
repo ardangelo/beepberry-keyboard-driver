@@ -11,12 +11,12 @@
 #include "debug_levels.h"
 
 #include "input_iface.h"
+#include "params_iface.h"
 
 #include "bbq20kbd_pmod_codes.h"
 
 #include "indicators.h"
 
-#define SHARP_DEVICE_PATH "/dev/dri/card0"
 #define SYMBOL_OVERLAY_PATH "/sbin/symbol-overlay"
 
 struct sticky_modifier
@@ -112,11 +112,12 @@ static uint8_t map_phys_alt_keycode(struct kbd_ctx* ctx, uint8_t keycode)
 // Will return normally if overlay is not installed
 static void show_sym_menu(struct kbd_ctx* ctx, struct sticky_modifier* sticky_modifier)
 {
+	static char const* overlay_argv[] = {SYMBOL_OVERLAY_PATH, NULL, NULL};
+
 	g_showing_sym_menu = 1;
 
-	// Call symbol menu helper
-	static char const* overlay_argv[] = {
-		SYMBOL_OVERLAY_PATH, SHARP_DEVICE_PATH, NULL};
+	// Call overlay helper
+	overlay_argv[1] = params_get_sharp_path();
 	call_usermodehelper(overlay_argv[0], (char**)overlay_argv, NULL, UMH_NO_WAIT);
 }
 
