@@ -8,9 +8,31 @@
 
 #include "indicators.h"
 
+#define SHARP_DEVICE_PATH "/dev/dri/card0"
+#define SYMBOL_OVERLAY_PATH "/sbin/symbol-overlay"
+
 // Globals
 
 static uint8_t g_enabled;
+static uint8_t g_showing_indicator;
+// Clear the Meta menu overlay when Meta indicator cleared
+static uint8_t g_showing_overlay;
+
+// Call Meta menu overlay helper
+// Will return normally if overlay is not installed
+static void show_meta_menu(struct kbd_ctx* ctx)
+{
+	if (g_showing_overlay) {
+		return;
+	}
+
+	g_showing_overlay = 1;
+
+	// Call symbol menu helper
+	static char const* overlay_argv[] = {
+		SYMBOL_OVERLAY_PATH, "--meta", SHARP_DEVICE_PATH, NULL};
+	call_usermodehelper(overlay_argv[0], (char**)overlay_argv, NULL, UMH_NO_WAIT);
+}
 
 // Called before checking "repeatable" meta mode keys,
 // These keys map to an internal driver function rather than another key
@@ -94,6 +116,8 @@ static uint8_t map_repeatable_key(struct kbd_ctx* ctx, uint8_t keycode)
 int input_meta_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 {
 	g_enabled = 0;
+	g_showing_indicator = 0;
+	g_showing_overlay = 0;
 
 	return 0;
 }
@@ -111,8 +135,12 @@ int input_meta_consumes_keycode(struct kbd_ctx* ctx,
 
 		// Berry key enables meta mode
 		if (keycode == KEY_PROPS) {
+
 			if (state == KEY_STATE_RELEASED) {
 				input_meta_enable(ctx);
+
+			} else if (state == KEY_STATE_HOLD) {
+				show_meta_menu(ctx);
 			}
 			return 1;
 		}
@@ -125,6 +153,16 @@ int input_meta_consumes_keycode(struct kbd_ctx* ctx,
 	 || (keycode == KEY_LEFTALT) || (keycode == KEY_RIGHTALT)
 	 || (keycode == KEY_LEFTCTRL) || (keycode == KEY_RIGHTCTRL)) {
 		return 1;
+	}
+
+	// Keys in Meta mode will clear overlay
+	if (g_showing_overlay) {
+		input_display_clear_overlays();
+		g_showing_overlay = 0;
+		// Re-display indicator after clearing
+		if (g_showing_indicator) {
+			input_display_set_indicator(5, ind_meta);
+		}
 	}
 
 	// Berry or Back key exits meta mode
@@ -169,7 +207,10 @@ void input_meta_enable(struct kbd_ctx* ctx)
 	g_enabled = 1;
 
 	// Set display indicator
-	input_display_set_indicator(5, ind_meta);
+	if (!g_showing_indicator) {
+		input_display_set_indicator(5, ind_meta);
+		g_showing_indicator = 1;
+	}
 }
 
 void input_meta_disable(struct kbd_ctx* ctx)
@@ -177,5 +218,8 @@ void input_meta_disable(struct kbd_ctx* ctx)
 	g_enabled = 0;
 
 	// Clear display indicator
-	input_display_clear_indicator(5);
+	if (g_showing_indicator) {
+		input_display_clear_indicator(5);
+		g_showing_indicator = 0;
+	}
 }
