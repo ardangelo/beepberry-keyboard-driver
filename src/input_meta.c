@@ -5,12 +5,35 @@
 
 #include "config.h"
 #include "input_iface.h"
+#include "params_iface.h"
 
 #include "indicators.h"
+
+#define SYMBOL_OVERLAY_PATH "/sbin/symbol-overlay"
 
 // Globals
 
 static uint8_t g_enabled;
+static uint8_t g_showing_indicator;
+// Clear the Meta menu overlay when Meta indicator cleared
+static uint8_t g_showing_overlay;
+
+// Call Meta menu overlay helper
+// Will return normally if overlay is not installed
+static void show_meta_menu(struct kbd_ctx* ctx)
+{
+	static char const* overlay_argv[] = {SYMBOL_OVERLAY_PATH, "--meta", NULL, NULL};
+
+	if (g_showing_overlay) {
+		return;
+	}
+
+	g_showing_overlay = 1;
+
+	// Call overlay helper
+	overlay_argv[2] = params_get_sharp_path();
+	call_usermodehelper(overlay_argv[0], (char**)overlay_argv, NULL, UMH_NO_WAIT);
+}
 
 // Called before checking "repeatable" meta mode keys,
 // These keys map to an internal driver function rather than another key
@@ -26,6 +49,8 @@ static bool is_single_function_key(struct kbd_ctx* ctx, uint8_t keycode)
 	case KEY_M: return TRUE; // Increase brightness
 	case KEY_MUTE: return TRUE; // Toggle brightness
 	case KEY_0: return TRUE; // Invert display
+	case KEY_ESC: return TRUE; // Exit meta mode
+	case KEY_PROPS: return TRUE; // Exit meta mode
 	}
 
 	return FALSE;
@@ -53,6 +78,11 @@ static void run_single_function_key(struct kbd_ctx* ctx, uint8_t keycode)
 
 	case KEY_0:
 		input_display_invert(ctx);
+		input_meta_disable(ctx);
+		return;
+	
+	case KEY_ESC:
+	case KEY_PROPS:
 		input_meta_disable(ctx);
 		return;
 
@@ -94,6 +124,8 @@ static uint8_t map_repeatable_key(struct kbd_ctx* ctx, uint8_t keycode)
 int input_meta_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 {
 	g_enabled = 0;
+	g_showing_indicator = 0;
+	g_showing_overlay = 0;
 
 	return 0;
 }
@@ -111,8 +143,12 @@ int input_meta_consumes_keycode(struct kbd_ctx* ctx,
 
 		// Berry key enables meta mode
 		if (keycode == KEY_PROPS) {
+
 			if (state == KEY_STATE_RELEASED) {
 				input_meta_enable(ctx);
+
+			} else if (state == KEY_STATE_HOLD) {
+				show_meta_menu(ctx);
 			}
 			return 1;
 		}
@@ -127,12 +163,14 @@ int input_meta_consumes_keycode(struct kbd_ctx* ctx,
 		return 1;
 	}
 
-	// Berry or Back key exits meta mode
-	if ((keycode == KEY_ESC) || (keycode == KEY_PROPS)) {
-		if (state == KEY_STATE_RELEASED) {
-			input_meta_disable(ctx);
+	// Keys in Meta mode will clear overlay
+	if (g_showing_overlay) {
+		input_display_clear_overlays();
+		g_showing_overlay = 0;
+		// Re-display indicator after clearing
+		if (g_showing_indicator) {
+			input_display_set_indicator(5, ind_meta);
 		}
-		return 1;
 	}
 
 	// Handle function dispatch meta mode keys
@@ -169,7 +207,10 @@ void input_meta_enable(struct kbd_ctx* ctx)
 	g_enabled = 1;
 
 	// Set display indicator
-	input_display_set_indicator(5, ind_meta);
+	if (!g_showing_indicator) {
+		input_display_set_indicator(5, ind_meta);
+		g_showing_indicator = 1;
+	}
 }
 
 void input_meta_disable(struct kbd_ctx* ctx)
@@ -177,5 +218,8 @@ void input_meta_disable(struct kbd_ctx* ctx)
 	g_enabled = 0;
 
 	// Clear display indicator
-	input_display_clear_indicator(5);
+	if (g_showing_indicator) {
+		input_display_clear_indicator(5);
+		g_showing_indicator = 0;
+	}
 }

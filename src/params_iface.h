@@ -11,4 +11,6 @@
 int params_probe(void);
 void params_shutdown(void);
 
+char const* params_get_sharp_path(void);
+
 #endif
