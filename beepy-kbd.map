@@ -36,7 +36,7 @@ altgr keycode 113 = dollar
 # Press power key sends Control + this code
 # Use it for Tmux prefix
 control keycode 171 = Control_b
- Short hold power key sends Tmux prefix + this key 
+# Short hold power key sends Tmux prefix + this key 
 control keycode 174 = e
 
 # Meta Q / A move between words
