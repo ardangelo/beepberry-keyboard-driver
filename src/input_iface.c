@@ -80,6 +80,11 @@ static void key_report_event(struct kbd_ctx* ctx,
 		return;
 	}
 
+	// Ignore hold keys at this point
+	if (ev->state == KEY_STATE_HOLD) {
+		return;
+	}
+
 	// Apply pending sticky modifiers
 	keycode = input_modifiers_apply_pending(ctx, keycode);
 

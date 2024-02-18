@@ -17,6 +17,9 @@ static uint8_t g_enabled;
 static uint8_t g_showing_indicator;
 // Clear the Meta menu overlay when Meta indicator cleared
 static uint8_t g_showing_overlay;
+// Store the last keycode sent to simulate a key
+// up event when the key is released after Meta is exited
+static uint8_t g_current_meta_keycode;
 
 // Call Meta menu overlay helper
 // Will return normally if overlay is not installed
@@ -56,43 +59,40 @@ static bool is_single_function_key(struct kbd_ctx* ctx, uint8_t keycode)
 	return FALSE;
 }
 
-static void run_single_function_key(struct kbd_ctx* ctx, uint8_t keycode)
+// Return whether or not to exit meta mode
+static int run_single_function_key(struct kbd_ctx* ctx, uint8_t keycode)
 {
 	switch (keycode) {
 
 	case KEY_T:
 		input_report_key(ctx->input_dev, KEY_TAB, 1);
 		input_report_key(ctx->input_dev, KEY_TAB, 0);
-		input_meta_disable(ctx);
-		return;
+		return 1;
 
 	case KEY_X:
 		input_modifiers_send_control(ctx);
-		input_meta_disable(ctx);
-		return;
+		return 1;
 
 	case KEY_C:
 		input_modifiers_send_alt(ctx);
-		input_meta_disable(ctx);
-		return;
+		return 1;
 
 	case KEY_0:
 		input_display_invert(ctx);
-		input_meta_disable(ctx);
-		return;
-	
+		return 1;
+
 	case KEY_ESC:
 	case KEY_PROPS:
-		input_meta_disable(ctx);
-		return;
+		return 1;
 
-	case KEY_N: input_fw_decrease_brightness(ctx); return;
-	case KEY_M: input_fw_increase_brightness(ctx); return;
+	case KEY_N: input_fw_decrease_brightness(ctx); return 0;
+	case KEY_M: input_fw_increase_brightness(ctx); return 0;
 	case KEY_MUTE:
 		input_fw_toggle_brightness(ctx);
-		input_meta_disable(ctx);
-		return;
+		return 1;
 	}
+
+	return 0;
 }
 
 // Called after checking "single function" meta mode keys,
@@ -116,9 +116,7 @@ static uint8_t map_repeatable_key(struct kbd_ctx* ctx, uint8_t keycode)
 	case KEY_A: return 173;
 	}
 
-	// No meta mode match, disable and return original key
-	input_meta_disable(ctx);
-	return keycode;
+	return 0;
 }
 
 int input_meta_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
@@ -131,7 +129,9 @@ int input_meta_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 }
 
 void input_meta_shutdown(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
-{}
+{
+	input_meta_disable(ctx);
+}
 
 int input_meta_consumes_keycode(struct kbd_ctx* ctx,
 	uint8_t *remapped_keycode, uint8_t keycode, uint8_t state)
@@ -176,7 +176,11 @@ int input_meta_consumes_keycode(struct kbd_ctx* ctx,
 	// Handle function dispatch meta mode keys
 	if (is_single_function_key(ctx, keycode)) {
 		if (state == KEY_STATE_RELEASED) {
-			run_single_function_key(ctx, keycode);
+
+			// Function will return whether to exit meta
+			if (run_single_function_key(ctx, keycode)) {
+				input_meta_disable(ctx);
+			}
 		}
 		return 1;
 	}
@@ -184,20 +188,20 @@ int input_meta_consumes_keycode(struct kbd_ctx* ctx,
 	// Remap to meta mode key
 	simulated_keycode = map_repeatable_key(ctx, keycode);
 
-	// Input consumed by meta mode with no remapped key
+	// No mapped meta mode key, disable and pass through key
 	if (simulated_keycode == 0) {
-		return 1;
+		input_meta_disable(ctx);
+		return 0;
 	}
 
 	// Report key to input system
 	input_report_key(ctx->input_dev, simulated_keycode,
 		state == KEY_STATE_PRESSED);
 
-	// If exited meta mode, simulate key up event. Otherwise, input system
-	// will have remapped key as in the down state
-	if (!g_enabled && (simulated_keycode != keycode)) {
-		input_report_key(ctx->input_dev, simulated_keycode, FALSE);
-	}
+	// Save remapped key
+	g_current_meta_keycode = (state == KEY_STATE_PRESSED)
+		? simulated_keycode
+		: 0;
 
 	return 1;
 }
@@ -205,6 +209,7 @@ int input_meta_consumes_keycode(struct kbd_ctx* ctx,
 void input_meta_enable(struct kbd_ctx* ctx)
 {
 	g_enabled = 1;
+	g_current_meta_keycode = 0;
 
 	// Set display indicator
 	if (!g_showing_indicator) {
@@ -221,5 +226,11 @@ void input_meta_disable(struct kbd_ctx* ctx)
 	if (g_showing_indicator) {
 		input_display_clear_indicator(5);
 		g_showing_indicator = 0;
+	}
+
+	// Simulate key up event
+	if (g_current_meta_keycode) {
+		input_report_key(ctx->input_dev, g_current_meta_keycode, FALSE);
+		g_current_meta_keycode = 0;
 	}
 }
