@@ -23,6 +23,7 @@ static char *touch_led_setting = "high"; // "low", "med", "high"
 static char *handle_poweroff_setting = "0"; // Enable to have module invoke poweroff
 static char *shutdown_grace_setting = "30"; // 30 seconds between shutdown signal and poweroff
 static char *sharp_path_setting = "/dev/dri/card0"; // Path to Sharp display device
+static uint32_t sysfs_gid_setting = 0; // GID of files in /sys/firmware/beepy
 
 // Update touchpad activation setting in global context, if available
 static int set_touch_act_setting(struct kbd_ctx* ctx, char const* val)
@@ -351,6 +352,28 @@ static const struct kernel_param_ops sharp_path_param_ops = {
 module_param_cb(sharp_path, &sharp_path_param_ops, &sharp_path_setting, 0664);
 MODULE_PARM_DESC(sharp_path_setting, "Set path to Sharp display DRM device");
 
+// Time between shutdown signal and power off in seconds
+static int sysfs_gid_param_set(const char *val, const struct kernel_param *kp)
+{
+	char *stripped_val;
+	char stripped_val_buf[11];
+
+	// Copy provided value to buffer and strip it of newlines
+	strncpy(stripped_val_buf, val, 11);
+	stripped_val_buf[10] = '\0';
+	stripped_val = strstrip(stripped_val_buf);
+
+	return param_set_uint(stripped_val, kp);
+}
+
+static const struct kernel_param_ops sysfs_gid_param_ops = {
+	.set = sysfs_gid_param_set,
+	.get = param_get_uint,
+};
+
+module_param_cb(sysfs_gid, &sysfs_gid_param_ops, &sysfs_gid_setting, 0664);
+MODULE_PARM_DESC(sysfs_gid_setting, "Set group ID for entries in /sys/firmware/beepy");
+
 // No setup
 int params_probe(void)
 {
@@ -382,4 +405,9 @@ void params_shutdown(void)
 char const* params_get_sharp_path(void)
 {
 	return sharp_path_setting;
+}
+
+uint32_t params_get_sysfs_gid(void)
+{
+	return sysfs_gid_setting;
 }

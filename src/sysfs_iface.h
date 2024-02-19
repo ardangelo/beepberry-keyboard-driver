@@ -6,7 +6,7 @@
  * Keyboard Driver for Blackberry Keyboards BBQ10 from arturo182. Software written by wallComputer.
  */
 
-int sysfs_probe(void);
-void sysfs_shutdown(void);
+int sysfs_probe(struct i2c_client* i2c_client);
+void sysfs_shutdown(struct i2c_client* i2c_client);
 
 #endif

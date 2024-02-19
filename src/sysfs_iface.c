@@ -13,6 +13,7 @@
 
 #include "i2c_helper.h"
 #include "input_iface.h"
+#include "params_iface.h"
 #include "sysfs_iface.h"
 
 // Read battery level over I2C
@@ -327,15 +328,30 @@ static struct attribute_group beepy_attr_group = {
 	.attrs = beepy_attrs
 };
 
-int sysfs_probe(void)
+static void beepy_get_ownership(struct kobject *kobj, kuid_t *uid, kgid_t *gid)
 {
-	// Create sysfs entry for beepy
-	if ((beepy_kobj = kobject_create_and_add("beepy", firmware_kobj)) == NULL) {
+	if (gid != NULL) {
+		gid->val = params_get_sysfs_gid();
+	}
+}
+
+static struct kobj_type beepy_ktype = {
+	.get_ownership = beepy_get_ownership,
+	.sysfs_ops = &kobj_sysfs_ops
+};
+
+int sysfs_probe(struct i2c_client* i2c_client)
+{
+	// Allocate custom sysfs type
+	if ((beepy_kobj = devm_kzalloc(&i2c_client->dev, sizeof(*beepy_kobj), GFP_KERNEL)) == NULL) {
 		return -ENOMEM;
 	}
 
+	// Create sysfs entries for beepy with custom type
+	kobject_init_and_add(beepy_kobj, &beepy_ktype, firmware_kobj, "beepy");
+
 	// Create sysfs attributes
-	if (sysfs_create_group(beepy_kobj, &beepy_attr_group)){
+	if (sysfs_create_group(beepy_kobj, &beepy_attr_group)) {
 		kobject_put(beepy_kobj);
 		return -ENOMEM;
 	}
@@ -343,7 +359,7 @@ int sysfs_probe(void)
 	return 0;
 }
 
-void sysfs_shutdown(void)
+void sysfs_shutdown(struct i2c_client* i2c_client)
 {
 	// Remove sysfs entry
 	if (beepy_kobj) {
