@@ -58,8 +58,12 @@ Typing any other key while in Meta mode will exit Meta mode and send the key as 
 
 The following sysfs entries are available under `/sys/firmware/beepy`:
 
-- `led`: 0 to disable LED, 1 to enable. Write-only
-- `led_red`, `led_green`, `led_blue`: set LED color intensity from 0 to 255. Write- only
+- `led_red`, `led_green`, `led_blue`: set LED color intensity from 0 to 255. Apply by writing to `led`. Write-only
+- `led`: Also applies color settings. Write-only
+  - `0` to turn off LED
+  - `1` to turn on LED
+  - `2` to flash LED
+  - `3` to flash LED until key pressed, returning to previous setting
 - `keyboard_backlight`: set keyboard brightness from 0 to 255. Write-only
 - `battery_raw`: raw numerical battery level as reported by firmware. Read-only
 - `battery_volts`: battery voltage estimation. Read-only
