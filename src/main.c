@@ -4,6 +4,7 @@
  * main.c: Main C File.
  */
 
+#include <linux/version.h>
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/i2c.h>
@@ -23,7 +24,12 @@
 #error "Only supporting BBQ20 keyboard right now"
 #endif
 
-static int beepy_kbd_probe(struct i2c_client* i2c_client, struct i2c_device_id const* i2c_id)
+static int beepy_kbd_probe
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0)
+(struct i2c_client* i2c_client, struct i2c_device_id const* i2c_id)
+#else
+(struct i2c_client* i2c_client)
+#endif
 {
 	int rc;
 

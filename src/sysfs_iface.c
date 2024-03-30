@@ -5,6 +5,7 @@
  * sysfs.c: /sys/firmware/beepy interface
  */
 
+#include <linux/version.h>
 #include <linux/types.h>
 #include <linux/sysfs.h>
 #include <linux/kobject.h>
@@ -328,7 +329,12 @@ static struct attribute_group beepy_attr_group = {
 	.attrs = beepy_attrs
 };
 
-static void beepy_get_ownership(struct kobject *kobj, kuid_t *uid, kgid_t *gid)
+static void beepy_get_ownership
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0)
+(struct kobject *kobj, kuid_t *uid, kgid_t *gid)
+#else
+(struct kobject const *kobj, kuid_t *uid, kgid_t *gid)
+#endif
 {
 	if (gid != NULL) {
 		gid->val = params_get_sysfs_gid();
@@ -342,13 +348,26 @@ static struct kobj_type beepy_ktype = {
 
 int sysfs_probe(struct i2c_client* i2c_client)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0)
+	int rc;
+#endif
+
 	// Allocate custom sysfs type
 	if ((beepy_kobj = devm_kzalloc(&i2c_client->dev, sizeof(*beepy_kobj), GFP_KERNEL)) == NULL) {
 		return -ENOMEM;
 	}
 
 	// Create sysfs entries for beepy with custom type
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0)
+	rc =
+#endif
 	kobject_init_and_add(beepy_kobj, &beepy_ktype, firmware_kobj, "beepy");
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0)
+	if (rc < 0) {
+		kobject_put(beepy_kobj);
+		return rc;
+	}
+#endif
 
 	// Create sysfs attributes
 	if (sysfs_create_group(beepy_kobj, &beepy_attr_group)) {
