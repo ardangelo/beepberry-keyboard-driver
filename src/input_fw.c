@@ -36,7 +36,7 @@ int input_fw_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 	uint8_t reg_value;
 
 	// Initialize keyboard context
-	g_brightness = 0xFF;
+	g_brightness = 0x10;
 	g_last_brightness = 0x00;
 	g_handle_poweroff = 0;
 

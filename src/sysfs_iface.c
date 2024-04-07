@@ -225,6 +225,7 @@ static ssize_t startup_reason_show(struct kobject *kobj, struct kobj_attribute *
 		case STARTUP_REASON_FW_INIT: return sprintf(buf, "fw_init\n");
 		case STARTUP_REASON_BUTTON: return sprintf(buf, "power_button\n");
 		case STARTUP_REASON_REWAKE: return sprintf(buf, "rewake\n");
+		case STARTUP_REASON_REWAKE_CANCELED: return sprintf(buf, "rewake_canceled\n");
 	}
 
 	return sprintf(buf, "unknown: %d\n", reason);
