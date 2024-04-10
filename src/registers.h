@@ -98,7 +98,11 @@
 #define REG_CF2_USB_MOUSE_ON			BIT(2)
 #define REG_CF2_USB_KEYB_ON				BIT(1)
 #define REG_CF2_TOUCH_INT				BIT(0)
+#ifdef DEBUG
+#define REG_CFG2_DEFAULT_SETTING		(REG_CF2_TOUCH_INT)
+#else
 #define REG_CFG2_DEFAULT_SETTING		(REG_CF2_TOUCH_INT | REG_CF2_AUTO_OFF)
+#endif
 
 #define REG_TOX							0x15
 #define REG_TOY							0x16

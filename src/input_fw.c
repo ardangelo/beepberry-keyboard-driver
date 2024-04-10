@@ -317,3 +317,25 @@ void input_fw_set_handle_poweroff(struct kbd_ctx* ctx, uint8_t handle_poweroff)
 {
 	g_handle_poweroff = handle_poweroff;
 }
+
+void input_fw_set_auto_off(struct kbd_ctx* ctx, uint8_t auto_off)
+{
+	uint8_t reg_value;
+
+	// Get original value
+	if (kbd_read_i2c_u8(ctx->i2c_client, REG_CF2, &reg_value)) {
+		return;
+	}
+
+	// Update auto-off bit
+	if (auto_off) {
+		reg_value |= REG_CF2_AUTO_OFF;
+	} else {
+		reg_value &= ~REG_CF2_AUTO_OFF;
+	}
+
+	// Update value
+	if (kbd_write_i2c_u8(ctx->i2c_client, REG_CF2, reg_value)) {
+		return;
+	}
+}

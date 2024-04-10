@@ -24,6 +24,12 @@ static char *handle_poweroff_setting = "0"; // Enable to have module invoke powe
 static char *shutdown_grace_setting = "30"; // 30 seconds between shutdown signal and poweroff
 static char *sharp_path_setting = "/dev/dri/card0"; // Path to Sharp display device
 static uint32_t sysfs_gid_setting = 0; // GID of files in /sys/firmware/beepy
+static char *auto_off_setting = // Enable to trigger a 30 second poweroff timer on driver unload
+#ifdef DEBUG
+"0";
+#else
+"1";
+#endif
 
 // Update touchpad activation setting in global context, if available
 static int set_touch_act_setting(struct kbd_ctx* ctx, char const* val)
@@ -374,6 +380,41 @@ static const struct kernel_param_ops sysfs_gid_param_ops = {
 module_param_cb(sysfs_gid, &sysfs_gid_param_ops, &sysfs_gid_setting, 0664);
 MODULE_PARM_DESC(sysfs_gid_setting, "Set group ID for entries in /sys/firmware/beepy");
 
+// Trigger shutdown on driver unload
+static int set_auto_off_setting(struct kbd_ctx *ctx, char const* val)
+{
+	// If no state was passed, exit
+	if (!ctx) {
+		return 0;
+	}
+
+	input_fw_set_auto_off(ctx, val[0] != '0');
+	return 0;
+}
+
+static int auto_off_setting_param_set(const char *val, const struct kernel_param *kp)
+{
+	char *stripped_val;
+	char stripped_val_buf[2];
+
+	// Copy provided value to buffer and strip it of newlines
+	strncpy(stripped_val_buf, val, 2);
+	stripped_val_buf[1] = '\0';
+	stripped_val = strstrip(stripped_val_buf);
+
+	return (set_auto_off_setting(g_ctx, stripped_val) < 0)
+		? -EINVAL
+		: param_set_charp(stripped_val, kp);
+}
+
+static const struct kernel_param_ops auto_off_setting_param_ops = {
+	.set = auto_off_setting_param_set,
+	.get = param_get_charp,
+};
+
+module_param_cb(auto_off, &auto_off_setting_param_ops, &auto_off_setting, 0664);
+MODULE_PARM_DESC(auto_off_setting, "Automatically shut down and enter deep sleep when driver is unloaded");
+
 // No setup
 int params_probe(void)
 {
@@ -390,6 +431,9 @@ int params_probe(void)
 		return rc;
 	}
 	if ((rc = set_handle_poweroff_setting(g_ctx, handle_poweroff_setting)) < 0) {
+		return rc;
+	}
+	if ((rc = set_auto_off_setting(g_ctx, auto_off_setting)) < 0) {
 		return rc;
 	}
 

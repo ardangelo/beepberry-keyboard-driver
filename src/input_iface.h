@@ -104,6 +104,7 @@ int input_fw_set_rtc(uint8_t year, uint8_t mon, uint8_t day,
 	uint8_t hour, uint8_t min, uint8_t sec);
 
 void input_fw_set_handle_poweroff(struct kbd_ctx* ctx, uint8_t handle_poweroff);
+void input_fw_set_auto_off(struct kbd_ctx* ctx, uint8_t auto_off);
 
 // RTC
 
