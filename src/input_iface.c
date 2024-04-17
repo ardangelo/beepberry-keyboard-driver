@@ -53,6 +53,9 @@ static void key_report_event(struct kbd_ctx* ctx,
 		return;
 	}
 
+	// Update last keypress time
+	g_ctx->last_keypress_at = ktime_get_boottime_ns();
+
 	if (keycode == KEY_STOP) {
 
 		// Pressing power button sends Tmux prefix (Control + code 171 in keymap)
@@ -206,6 +209,7 @@ int input_probe(struct i2c_client* i2c_client)
 
 	// Initialize keyboard context
 	g_ctx->i2c_client = i2c_client;
+	g_ctx->last_keypress_at = ktime_get_boottime_ns();
 
 	// Run subsystem probes
 	if ((rc = input_fw_probe(i2c_client, g_ctx))) {

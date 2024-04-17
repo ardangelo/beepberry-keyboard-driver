@@ -120,4 +120,4 @@ module_exit(beepy_kbd_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("wallComputer and Andrew D'Angelo <dangeloandrew@outlook.com>");
 MODULE_DESCRIPTION("BB Classic keyboard driver for Beepy");
-MODULE_VERSION("2.9");
+MODULE_VERSION("2.11");

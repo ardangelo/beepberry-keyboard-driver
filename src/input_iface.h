@@ -66,6 +66,7 @@ struct kbd_ctx
 	// Key state and touch FIFO queue
 	uint8_t key_fifo_count;
 	struct key_fifo_item key_fifo_data[BBQX0KBD_FIFO_SIZE];
+	uint64_t last_keypress_at;
 
 	uint8_t raised_touch_event;
 	struct touch_ctx touch;

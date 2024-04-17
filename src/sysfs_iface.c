@@ -9,6 +9,8 @@
 #include <linux/types.h>
 #include <linux/sysfs.h>
 #include <linux/kobject.h>
+#include <linux/timekeeping.h>
+#include <linux/math64.h>
 
 #include "config.h"
 
@@ -309,6 +311,32 @@ static ssize_t __used fw_update_store(struct kobject *kobj,
 struct kobj_attribute fw_update_attr
 	= __ATTR(fw_update, 0220, NULL, fw_update_store);
 
+// Time since last keypress in milliseconds
+static ssize_t last_keypress_show(struct kobject *kobj, struct kobj_attribute *attr,
+	char *buf)
+{
+	uint64_t last_keypress_ms;
+
+	if (g_ctx) {
+
+		// Get time in ns
+		last_keypress_ms = ktime_get_boottime_ns();
+		if (g_ctx->last_keypress_at < last_keypress_ms) {
+			last_keypress_ms -= g_ctx->last_keypress_at;
+
+			// Calculate time in milliseconds
+			last_keypress_ms = div_u64(last_keypress_ms, 1000000);
+
+			// Format into buffer
+			return sprintf(buf, "%lld\n", last_keypress_ms);
+		}
+	}
+
+	return sprintf(buf, "-1\n");
+}
+struct kobj_attribute last_keypress_attr
+	= __ATTR(last_keypress, 0444, last_keypress_show, NULL);
+
 // Sysfs attributes (entries)
 struct kobject *beepy_kobj = NULL;
 static struct attribute *beepy_attrs[] = {
@@ -324,6 +352,7 @@ static struct attribute *beepy_attrs[] = {
 	&startup_reason_attr.attr,
 	&fw_version_attr.attr,
 	&fw_update_attr.attr,
+	&last_keypress_attr.attr,
 	NULL,
 };
 static struct attribute_group beepy_attr_group = {
