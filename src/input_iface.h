@@ -157,6 +157,8 @@ void input_touch_disable(struct kbd_ctx *ctx);
 void input_touch_set_activation(struct kbd_ctx *ctx, uint8_t activation);
 void input_touch_set_input_as(struct kbd_ctx *ctx, uint8_t input_as);
 
+void input_touch_set_indicator(struct kbd_ctx *ctx);
+
 // Meta mode
 
 int input_meta_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx);

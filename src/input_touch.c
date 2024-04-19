@@ -13,8 +13,12 @@
 #include "input_iface.h"
 #include "i2c_helper.h"
 
+#include "indicators.h"
+
 #define XMIN 8
 #define YMIN 8
+
+static uint8_t g_touch_indicator = 0;
 
 static void enable_scale_2x(struct kbd_ctx* ctx)
 {
@@ -194,6 +198,11 @@ int input_touch_consumes_keycode(struct kbd_ctx* ctx,
 		// If touch off, touchpad click will turn touch on
 		} else if (state == KEY_STATE_RELEASED) {
 			input_touch_enable(ctx);
+
+			// Don't show indicator in mouse mode
+			if (ctx->touch.input_as == TOUCH_INPUT_AS_KEYS) {
+				input_touch_set_indicator(ctx);
+			}
 		}
 
 	// Back key disables touch mode if touch enabled
@@ -237,6 +246,11 @@ void input_touch_disable(struct kbd_ctx *ctx)
 {
 	ctx->touch.enabled = 0;
 	input_fw_disable_touch_interrupts(ctx);
+
+	if (g_touch_indicator) {
+		g_touch_indicator = 0;
+		input_display_clear_indicator(6);
+	}
 }
 
 void input_touch_set_activation(struct kbd_ctx *ctx, uint8_t activation)
@@ -263,4 +277,10 @@ void input_touch_set_input_as(struct kbd_ctx *ctx, uint8_t input_as)
 	} else if (input_as == TOUCH_INPUT_AS_MOUSE) {
 		disable_scale_2x(ctx);
 	}
+}
+
+void input_touch_set_indicator(struct kbd_ctx *ctx)
+{
+	g_touch_indicator = 1;
+	input_display_set_indicator(6, ind_touch);
 }

@@ -374,5 +374,6 @@ void input_modifiers_shutdown(struct i2c_client* i2c_client, struct kbd_ctx *ctx
 void input_modifiers_reset_shift(struct kbd_ctx* ctx)
 {
 	g_sticky_shift.pending = 0;
+	g_sticky_shift.unset_callback(ctx, &g_sticky_shift);
 	input_display_clear_indicator(g_sticky_shift.indicator_idx);
 }
