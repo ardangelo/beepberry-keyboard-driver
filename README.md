@@ -31,13 +31,13 @@ The Beepy keyboard driver, `beepy-kbd`, controls interaction between the [RP2040
 
 Due to the limited number of keys, there are different shortcuts and modes mapped by the keyboard driver. You will see different types of indicators in the top right corner of the screen depending on the mode:
 
-* ![Shift indicator](assets/kbd-shift.png) [Shift modifier](#sticky-modifier-keys)
-* ![Phys. Alt indicator](assets/kbd-phys-alt.png) [Physical Alt modifier](#sticky-modifier-keys)
-* ![Control indicator](assets/kbd-control.png) [Control modifier](#basic-key-mappings)
-* ![Alt indicator](assets/kbd-alt.png) [Alt modifier](#key-mappings)
-* ![Symbol mode indicator](assets/kbd-altgr.png) [Symbol mode modifier](#alt-and-sym-modifiers)
-* ![Meta mode indicator](assets/kbd-meta.png) [Meta mode modifier](#meta-mode)
-* ![Touch mode indicator](assets/kbd-touch.png) [Touchpad mode modifier](#touchpad-mode)
+* <img src="assets/kbd-shift.png" width="14" alt="Shift indicator"> [Shift modifier](#sticky-modifier-keys)
+* <img src="assets/kbd-phys-alt.png" width="14" alt="Physical Alt indicator"> [Physical Alt modifier](#sticky-modifier-keys)
+* <img src="assets/kbd-control.png" width="14" alt="Control indicator"> [Control modifier](#basic-key-mappings)
+* <img src="assets/kbd-alt.png" width="14" alt="Alt indicator"> [Alt modifier](#key-mappings)
+* <img src="assets/kbd-altgr.png" width="14" alt="Symbol indicator"> [Symbol mode modifier](#alt-and-sym-modifiers)
+* <img src="assets/kbd-meta.png" width="14" alt="Meta mode indicator"> [Meta mode modifier](#meta-mode)
+* <img src="assets/kbd-touch.png" width="14" alt="Touchpad mode indicator"> [Touchpad mode modifier](#touchpad-mode)
 
 ### Basic key mappings
 
@@ -58,9 +58,9 @@ From left to right, the top row of the Beepy keyboard has the following keys:
     * Short hold (1s): Open the [tmux menu](beepy-tmux-menus.html). If the Pi has been shut down, a short hold will turn the Pi back on.
     * Long hold (5s): send a shutdown signal to the Pi.
 
-The alternate symbols printed directly on the keys are sent by pressing the `Physical Alt` key on the bottom left corner of the keyboard, then pressing the key on which the desired symbol is printed. While `Physical Alt` is active, you will see an `a` indicator in the top right corner of the screen: ![Physical Alt indicator](assets/kbd-alt.png). The combination `Physical Alt` + `Enter` is also mapped to `Tab`. `Physical Alt` is a "[sticky modifier key](#sticky-modifier-keys)".
+The alternate symbols printed directly on the keys are sent by pressing the `Physical Alt` key on the bottom left corner of the keyboard, then pressing the key on which the desired symbol is printed. While `Physical Alt` is active, you will see an `a` indicator in the top right corner of the screen: <img src="assets/kbd-phys-alt.png" width="14" alt="Physical Alt indicator">. The combination `Physical Alt` + `Enter` is also mapped to `Tab`. `Physical Alt` is a "[sticky modifier key](#sticky-modifier-keys)".
 
-For additional symbols not printed directly on the keys, use the `Symbol` key on the bottom row of the keyboard. While `Symbol` is active, you will see an `S` indicator in the top right of the screen: ![Symbol indicator](assets/kbd-altgr.png). Internally, `Symbol` sends AltGr (Right Alt), which is mapped to more symbols via the keymap file at `/usr/share/kbd/keymaps/beepy-kbd.map`. `Symbol` is a "[sticky modifier key](#sticky-modifier-keys)". You can view the Symbol key map by holding the `Symbol` key for 1 second. Modifying the keymap file will also update the Symbol key map displayed; below is the default key map:
+For additional symbols not printed directly on the keys, use the `Symbol` key on the bottom row of the keyboard. While `Symbol` is active, you will see an `S` indicator in the top right of the screen: <img src="assets/kbd-altgr.png" width="14" alt="Symbol indicator">. Internally, `Symbol` sends AltGr (Right Alt), which is mapped to more symbols via the keymap file at `/usr/share/kbd/keymaps/beepy-kbd.map`. `Symbol` is a "[sticky modifier key](#sticky-modifier-keys)". You can view the Symbol key map by holding the `Symbol` key for 1 second. Modifying the keymap file will also update the Symbol key map displayed; below is the default key map:
 
 ![Default Symbol key map](assets/overlay-symbol.png)
 
@@ -72,19 +72,19 @@ For easier typing, the keyboard driver implements sticky modifier keys. Pressing
 
 Holding a modifier key while typing an alpha key will apply the modifier to all alpha keys until the modifier is released.
 
-While a modifier key is active, [visual indicators](#indicators) are drawn in the top right corner of the display, with indicators for ![Shift indicator](assets/kbd-shift.png) [Shift](#sticky-modifier-keys), ![Physical Alt indicator](assets/kbd-phys-alt.png) [Physical Alt](#sticky-modifier-keys), ![Control indicator](assets/kbd-control.png) [Control](#basic-key-mappings), ![Alt indicator](assets/kbd-alt.png) [Alt](#key-mappings), ![Symbol mode indicator](assets/kbd-altgr.png) [Symbol](#alt-and-sym-modifiers), ![Meta mode indicator](assets/kbd-meta.png) [Meta mode](#meta-mode), and ![Touch mode indicator](assets/kbd-touch.png) [Touchpad mode](#touchpad-mode).
+While a modifier key is active, [visual indicators](#indicators) are drawn in the top right corner of the display, with indicators for <img src="assets/kbd-shift.png" width="14" alt="Shift indicator"> [Shift](#sticky-modifier-keys), <img src="assets/kbd-phys-alt.png" width="14" alt="Physical Alt indicator"> [Physical Alt](#sticky-modifier-keys), <img src="assets/kbd-control.png" width="14" alt="Control indicator"> [Control](#basic-key-mappings), <img src="assets/kbd-alt.png" width="14" alt="Alt indicator"> [Alt](#key-mappings), <img src="assets/kbd-altgr.png" width="14" alt="Symbol indicator"> [Symbol](#alt-and-sym-modifiers), <img src="assets/kbd-meta.png" width="14" alt="Meta mode indicator"> [Meta mode](#meta-mode), and <img src="assets/kbd-touch.png" width="14" alt="Touchpad mode indicator"> [Touchpad mode](#touchpad-mode).
 
 For example, to type a dot `.`, you can use `Physical Alt` sticky mode:
 
 * Press and release the `Physical Alt` key
-* The `a` indicator ![Physical Alt indicator](assets/kbd-alt.png) appears, showing that `Physical Alt` mode will be applied to the next keypress only
+* The `a` indicator <img src="assets/kbd-phys-alt.png" width="14" alt="Physical Alt indicator"> appears, showing that `Physical Alt` mode will be applied to the next keypress only
 * Type the `M` key to input a dot `.`
 * The `a` indicator disappears
 
 Alternatively, to type a dot `.` followed by a comma `,`, you can also press and hold `Physical Alt`:
 
 * Press the `Physical Alt` key
-* The `a` indicator ![Physical Alt indicator](assets/kbd-alt.png) appears, showing that `Physical Alt` mode is active
+* The `a` indicator <img src="assets/kbd-phys-alt.png" width="14" alt="Physical Alt indicator"> appears, showing that `Physical Alt` mode is active
 * While holding `Physical Alt`, type the `M` key to input a dot `.`
 * While holding `Physical Alt`, type the `N` key to input a comma `,`
 * Release the `Physical Alt` key
@@ -92,7 +92,7 @@ Alternatively, to type a dot `.` followed by a comma `,`, you can also press and
 
 ### Meta mode
 
-Meta mode is a modal layer that assists in rapidly moving the cursor and scrolling with single keypresses. To enter Meta mode, click the `Berry` key once. The Meta mode indicator ![Meta mode indicator](assets/kbd-meta.png) will appear in the top right corner of the screen, and the following keymap will be applied until Meta mode is dismissed using the `Back` key, or otherwise noted:
+Meta mode is a modal layer that assists in rapidly moving the cursor and scrolling with single keypresses. To enter Meta mode, click the `Berry` key once. The Meta mode indicator <img src="assets/kbd-meta.png" width="14" alt="Meta mode indicator"> will appear in the top right corner of the screen, and the following keymap will be applied until Meta mode is dismissed using the `Back` key, or otherwise noted:
 
 - `E` Up `S` Down `W` Left `D` Right
     - Why not `WASD`? This way, you can place your thumb in the middle of all four of these keys, and fluidly move the cursor without mistyping on e.g. `Q` or `E`
@@ -117,13 +117,13 @@ You can view the Meta mode key map by holding the `Berry` key for 1 second:
 
 The Beepy touchpad is not actually touch sensitive, rather it is an optical trackpad. This has the downside of sending touchpad input if material other than a finger moves across it, such as a pocket. To reduce false positives, the default mode of the Beepy touchpad is to remain off until a key is used to turn it on. Touchpad behavior, including mouse and activation, can be configured via [module parameters](#module-parameters).
 
-Press the touchpad itself to turn on touchpad mode, and start sending arrow keys when you move your finger across the touchpad. While active, you will see the touchpad indicator ![Touchpad indicator](assets/kbd-touch.png) in the top-right corner of the screen.
+Press the touchpad itself to turn on touchpad mode, and start sending arrow keys when you move your finger across the touchpad. While active, you will see the touchpad indicator <img src="assets/kbd-touch.png" width="14" alt="Touchpad indicator"> in the top-right corner of the screen.
 
 Clicking the touchpad itself again while the touchpad is active will send `Enter`. Pressing the `Back` key will exit touchpad mode.
 
-You can also hold the `Shift` key to temporarily turn on the touchpad until the `Shift` key is released. You will see the Shift indicator ![Shift indicator](assets/kbd-shift.png) instead of the touch indicator.
+You can also hold the `Shift` key to temporarily turn on the touchpad until the `Shift` key is released. You will see the Shift indicator <img src="assets/kbd-shift.png" width="14" alt="Shift indicator"> instead of the touch indicator.
 
-If you release the `Shift` key *without* using the touchpad, you will instead get the [sticky modifier behavior](#sticky-modifier-keys) of applying Shift to the next alpha keypress. In this case, the ![Shift indicator](assets/kbd-shift.png) will remain on the screen. Press and release the `Shift` key again to un-stick the modifier and hide the indicator.
+If you release the `Shift` key *without* using the touchpad, you will instead get the [sticky modifier behavior](#sticky-modifier-keys) of applying Shift to the next alpha keypress. In this case, the Shift indicator will remain on the screen. Press and release the `Shift` key again to un-stick the modifier and hide the indicator.
 
 ### `sysfs` interface
 
