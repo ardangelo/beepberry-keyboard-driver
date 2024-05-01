@@ -49,6 +49,7 @@ struct touch_ctx
 	uint8_t enabled;
 	uint8_t enable_while_shift_held;
 	uint8_t entry_while_shift_held;
+	uint8_t threshold;
 	int x, dx, y, dy;
 };
 
@@ -157,6 +158,7 @@ void input_touch_disable(struct kbd_ctx *ctx);
 void input_touch_set_activation(struct kbd_ctx *ctx, uint8_t activation);
 void input_touch_set_input_as(struct kbd_ctx *ctx, uint8_t input_as);
 
+void input_touch_set_threshold(struct kbd_ctx *ctx, uint8_t threshold);
 void input_touch_set_indicator(struct kbd_ctx *ctx);
 
 // Meta mode

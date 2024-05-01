@@ -20,6 +20,7 @@ static char *touch_shift_setting = "1"; // Hold Shift to temporarily enable touc
 static char *touch_as_setting = "keys"; // "keys" or "mouse"
 static char *touch_min_squal_setting = "16"; // Minimum surface quality to accept touch event
 static char *touch_led_setting = "high"; // "low", "med", "high"
+static uint32_t touch_threshold_setting = 8; // Touchpad move offset
 static char *handle_poweroff_setting = "0"; // Enable to have module invoke poweroff
 static char *shutdown_grace_setting = "30"; // 30 seconds between shutdown signal and poweroff
 static char *sharp_path_setting = "/dev/dri/card0"; // Path to Sharp display device
@@ -207,6 +208,56 @@ static const struct kernel_param_ops touch_min_squal_param_ops = {
 
 module_param_cb(touch_min_squal, &touch_min_squal_param_ops, &touch_min_squal_setting, 0664);
 MODULE_PARM_DESC(touch_min_squal_setting, "Minimum surface quality to accept touch event");
+
+// Set touchpad move threshold
+static int set_touch_threshold_setting(struct kbd_ctx *ctx, char const* val)
+{
+	int parsed_val;
+
+	// If no state was passed, exit
+	if (!ctx) {
+		return 0;
+	}
+
+	// Parse setting
+	if ((parsed_val = parse_u8(val)) < 0) {
+		return parsed_val;
+	}
+
+	// Check setting
+	if ((parsed_val < 4) || (parsed_val > 255)) {
+		return -1;
+	}
+
+	// Store setting
+	input_touch_set_threshold(ctx, (uint8_t)parsed_val);
+
+	return 0;
+}
+
+// Touchpad move threshold
+static int touch_threshold_param_set(const char *val, const struct kernel_param *kp)
+{
+	char *stripped_val;
+	char stripped_val_buf[4];
+
+	// Copy provided value to buffer and strip it of newlines
+	strncpy(stripped_val_buf, val, 4);
+	stripped_val_buf[3] = '\0';
+	stripped_val = strstrip(stripped_val_buf);
+
+	return (set_touch_threshold_setting(g_ctx, stripped_val) < 0)
+		? -EINVAL
+		: param_set_uint(stripped_val, kp);
+}
+
+static const struct kernel_param_ops touch_threshold_param_ops = {
+	.set = touch_threshold_param_set,
+	.get = param_get_uint,
+};
+
+module_param_cb(touch_threshold, &touch_threshold_param_ops, &touch_threshold_setting, 0664);
+MODULE_PARM_DESC(touch_threshold_setting, "Send touch event above this threshold (minimum 4, default 8)");
 
 // Set touchpad LED power level
 static int set_touch_led_setting(struct kbd_ctx* ctx, char const* val)

@@ -15,9 +15,6 @@
 
 #include "indicators.h"
 
-#define XMIN 8
-#define YMIN 8
-
 static uint8_t g_touch_indicator = 0;
 
 static void enable_scale_2x(struct kbd_ctx* ctx)
@@ -65,6 +62,7 @@ int input_touch_probe(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 
 	ctx->touch.enable_while_shift_held = 1;
 	ctx->touch.entry_while_shift_held = 0;
+	ctx->touch.threshold = 8;
 
 	// Default touch settings
 	input_touch_set_activation(ctx, TOUCH_ACT_CLICK);
@@ -78,6 +76,7 @@ void input_touch_shutdown(struct i2c_client* i2c_client, struct kbd_ctx *ctx)
 
 void input_touch_report_event(struct kbd_ctx *ctx)
 {
+	uint8_t x_threshold, y_threshold;
 #if (DEBUG_LEVEL & DEBUG_LEVEL_FE)
 	uint8_t qual;
 #endif
@@ -86,6 +85,10 @@ void input_touch_report_event(struct kbd_ctx *ctx)
 	 || ((ctx->touch.dx == 0) && (ctx->touch.dy == 0))) {
 		return;
 	}
+
+	// Set minimum touch thresholds
+	x_threshold = ctx->touch.threshold;
+	y_threshold = ctx->touch.threshold;
 
 	// Log touchpad surface quality
 #if (DEBUG_LEVEL & DEBUG_LEVEL_FE)
@@ -117,10 +120,10 @@ void input_touch_report_event(struct kbd_ctx *ctx)
 		ctx->touch.y += ctx->touch.dy;
 
 		// Snap movement to arrow keys directions
-		if ((ctx->touch.dx == 0) && (abs(ctx->touch.x) < XMIN)) {
+		if ((ctx->touch.dx == 0) && (abs(ctx->touch.x) < x_threshold)) {
 			ctx->touch.x = 0;
 		}
-		if ((ctx->touch.dy == 0) && (abs(ctx->touch.y) < YMIN)) {
+		if ((ctx->touch.dy == 0) && (abs(ctx->touch.y) < y_threshold)) {
 			ctx->touch.y = 0;
 		}
 		ctx->touch.dx = 0;
@@ -130,41 +133,41 @@ void input_touch_report_event(struct kbd_ctx *ctx)
 		ctx->touch.entry_while_shift_held = 1;
 
 		// Negative X: left arrow key
-		if (ctx->touch.x <= -XMIN) {
+		if (ctx->touch.x <= -x_threshold) {
 
 			do {
 				input_report_key(ctx->input_dev, KEY_LEFT, TRUE);
 				input_report_key(ctx->input_dev, KEY_LEFT, FALSE);
-				ctx->touch.x += XMIN;
-			} while (ctx->touch.x <= -XMIN);
+				ctx->touch.x += x_threshold;
+			} while (ctx->touch.x <= -x_threshold);
 
 		// Positive X: right arrow key
-		} else if (ctx->touch.x > XMIN) {
+		} else if (ctx->touch.x > x_threshold) {
 
 			do {
 				input_report_key(ctx->input_dev, KEY_RIGHT, TRUE);
 				input_report_key(ctx->input_dev, KEY_RIGHT, FALSE);
-				ctx->touch.x -= XMIN;
-			} while (ctx->touch.x > XMIN);
+				ctx->touch.x -= x_threshold;
+			} while (ctx->touch.x > x_threshold);
 		}
 
 		// Negative Y: up arrow key
-		if (ctx->touch.y <= -YMIN) {
+		if (ctx->touch.y <= -y_threshold) {
 
 			do {
 				input_report_key(ctx->input_dev, KEY_UP, TRUE);
 				input_report_key(ctx->input_dev, KEY_UP, FALSE);
-				ctx->touch.y += YMIN;
-			} while (ctx->touch.y <= -YMIN);
+				ctx->touch.y += y_threshold;
+			} while (ctx->touch.y <= -y_threshold);
 
 		// Positive Y: down arrow key
-		} else if (ctx->touch.y > YMIN) {
+		} else if (ctx->touch.y > y_threshold) {
 
 			do {
 				input_report_key(ctx->input_dev, KEY_DOWN, TRUE);
 				input_report_key(ctx->input_dev, KEY_DOWN, FALSE);
-				ctx->touch.y -= YMIN;
-			} while (ctx->touch.y > YMIN);
+				ctx->touch.y -= y_threshold;
+			} while (ctx->touch.y > y_threshold);
 		}
 	}
 }
@@ -277,6 +280,11 @@ void input_touch_set_input_as(struct kbd_ctx *ctx, uint8_t input_as)
 	} else if (input_as == TOUCH_INPUT_AS_MOUSE) {
 		disable_scale_2x(ctx);
 	}
+}
+
+void input_touch_set_threshold(struct kbd_ctx *ctx, uint8_t threshold)
+{
+	ctx->touch.threshold = threshold;
 }
 
 void input_touch_set_indicator(struct kbd_ctx *ctx)

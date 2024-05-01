@@ -60,7 +60,7 @@ install_aux: beepy-kbd.dtbo
 	@grep -qxF '$(KMAP_LINE)' /etc/default/keyboard \
 		|| echo '$(KMAP_LINE)' >> /etc/default/keyboard
 	@rm -f /etc/console-setup/cached_setup_keyboard.sh
-	@dpkg-reconfigure keyboard-configuration \
+	@DEBIAN_FRONTEND=noninteractive dpkg-reconfigure keyboard-configuration \
 		|| echo "dpkg-reconfigure failed, keymap may not be applied"
 
 uninstall:
@@ -75,7 +75,7 @@ uninstall:
 	# Remove keymap setting
 	@sed -i.save '\|$(KMAP_LINE)|d' /etc/default/keyboard
 	rm -f /etc/console-setup/cached_setup_keyboard.sh
-	@dpkg-reconfigure keyboard-configuration \
+	@DEBIAN_FRONTEND=noninteractive dpkg-reconfigure keyboard-configuration \
 		|| echo "dpkg-reconfigure failed, old keymap may not be applied"
 
 clean:

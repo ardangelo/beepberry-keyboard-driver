@@ -175,6 +175,7 @@ Configure various aspects of the driver itself. Write to `/sys/module/beepy_kbd/
 * `touch_shift` Default on. Send touch input while the Shift key is held.
 * `touch_min_squal` Reject touchpad input if surface quality as reported by touchpad sensor is lower than this threshold. Default `16`.
 * `touch_led_setting` One of `low`, `med`, `high`. Touchpad LED power setting. `high` is recommended for reliable input. Default `high`.
+* `touch_threshold` Touchpad movement amount required to send arrow key. Range `0 - 255`, default `8`.
 - `shutdown_grace` To avoid powering off the Pi while it is still running, this is set to the number of seconds to wait between a shutdown signal and the firmware removing power from the Pi. This helps ensure that the Pi has time to process the power-off command and to shut down cleanly. Default `30` seconds.
 - `auto_off` In most cases, the keyboard driver is loaded on boot and unloaded during shutdown. For substantial power savings, the default-enabled `auto_off` setting will trigger when the driver is unloaded. After a 30 second wait to allow for the driver to potentially be reloaded, the Pi will shutdown, wait for `shutdown_grace` seconds, then power off the Pi and enter deep sleep. Default on.
 * `sharp_path` Sharp DRM device to send overlay commands. Default: `/dev/dri/card0`.
