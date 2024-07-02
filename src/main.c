@@ -1,8 +1,4 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/*
- * Keyboard Driver for Blackberry Keyboards BBQ10 from arturo182. Software written by wallComputer.
- * main.c: Main C File.
- */
 
 #include <linux/version.h>
 #include <linux/init.h>
@@ -16,15 +12,7 @@
 #include "params_iface.h"
 #include "sysfs_iface.h"
 
-#if (BBQX0KBD_INT != BBQX0KBD_USE_INT)
-#error "Only supporting interrupts mode right now"
-#endif
-
-#if (BBQX0KBD_TYPE != BBQ20KBD_PMOD)
-#error "Only supporting BBQ20 keyboard right now"
-#endif
-
-static int beepy_kbd_probe
+static int emate_kbd_probe
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0)
 (struct i2c_client* i2c_client, struct i2c_device_id const* i2c_id)
 #else
@@ -51,73 +39,73 @@ static int beepy_kbd_probe
 	return 0;
 }
 
-static void beepy_kbd_shutdown(struct i2c_client* i2c_client)
+static void emate_kbd_shutdown(struct i2c_client* i2c_client)
 {
 	sysfs_shutdown(i2c_client);
 	params_shutdown();
 	input_shutdown(i2c_client);
 }
 
-static void beepy_kbd_remove(struct i2c_client* i2c_client)
+static void emate_kbd_remove(struct i2c_client* i2c_client)
 {
 	dev_info_fe(&i2c_client->dev,
-		"%s Removing beepy-kbd.\n", __func__);
+		"%s Removing emate-kbd.\n", __func__);
 
-	beepy_kbd_shutdown(i2c_client);
+	emate_kbd_shutdown(i2c_client);
 }
 
 // Driver definitions
 
 // Device IDs
-static const struct i2c_device_id beepy_kbd_i2c_device_id[] = {
-	{ "beepy-kbd", 0, },
+static const struct i2c_device_id emate_kbd_i2c_device_id[] = {
+	{ "emate-kbd", 0, },
 	{ }
 };
-MODULE_DEVICE_TABLE(i2c, beepy_kbd_i2c_device_id);
-static const struct of_device_id beepy_kbd_of_device_id[] = {
-	{ .compatible = "beepy-kbd", },
+MODULE_DEVICE_TABLE(i2c, emate_kbd_i2c_device_id);
+static const struct of_device_id emate_kbd_of_device_id[] = {
+	{ .compatible = "emate-kbd", },
 	{ }
 };
-MODULE_DEVICE_TABLE(of, beepy_kbd_of_device_id);
+MODULE_DEVICE_TABLE(of, emate_kbd_of_device_id);
 
 // Callbacks
-static struct i2c_driver beepy_kbd_driver = {
+static struct i2c_driver emate_kbd_driver = {
 	.driver = {
-		.name = "beepy-kbd",
-		.of_match_table = beepy_kbd_of_device_id,
+		.name = "emate-kbd",
+		.of_match_table = emate_kbd_of_device_id,
 	},
-	.probe    = beepy_kbd_probe,
-	.shutdown = beepy_kbd_shutdown,
-	.remove   = beepy_kbd_remove,
-	.id_table = beepy_kbd_i2c_device_id,
+	.probe    = emate_kbd_probe,
+	.shutdown = emate_kbd_shutdown,
+	.remove   = emate_kbd_remove,
+	.id_table = emate_kbd_i2c_device_id,
 };
 
 // Module constructor
-static int __init beepy_kbd_init(void)
+static int __init emate_kbd_init(void)
 {
 	int rc;
 
 	// Adding the I2C driver will call the _probe function to continue setup
-	if ((rc = i2c_add_driver(&beepy_kbd_driver))) {
-		pr_err("%s Could not initialise beepy-kbd! Error: %d\n",
+	if ((rc = i2c_add_driver(&emate_kbd_driver))) {
+		pr_err("%s Could not initialise emate-kbd! Error: %d\n",
 			__func__, rc);
 		return rc;
 	}
-	pr_info("%s Initalised beepy-kbd.\n", __func__);
+	pr_info("%s Initalised emate-kbd.\n", __func__);
 
 	return rc;
 }
-module_init(beepy_kbd_init);
+module_init(emate_kbd_init);
 
 // Module destructor
-static void __exit beepy_kbd_exit(void)
+static void __exit emate_kbd_exit(void)
 {
-	pr_info("%s Exiting beepy-kbd.\n", __func__);
-	i2c_del_driver(&beepy_kbd_driver);
+	pr_info("%s Exiting emate-kbd.\n", __func__);
+	i2c_del_driver(&emate_kbd_driver);
 }
-module_exit(beepy_kbd_exit);
+module_exit(emate_kbd_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("wallComputer and Andrew D'Angelo <dangeloandrew@outlook.com>");
-MODULE_DESCRIPTION("BB Classic keyboard driver for Beepy");
-MODULE_VERSION("2.11");
+MODULE_AUTHOR("Andrew D'Angelo <dangeloandrew@outlook.com>");
+MODULE_DESCRIPTION("eMate-CM4 keyboard driver");
+MODULE_VERSION("0.9");
